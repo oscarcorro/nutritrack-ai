@@ -14,9 +14,9 @@ export function useProfile() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
       if (error) throw error
-      return data as unknown as Profile
+      return (data as unknown as Profile) ?? null
     },
     enabled: !!user,
   })

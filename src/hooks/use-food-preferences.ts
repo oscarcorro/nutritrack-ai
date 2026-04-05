@@ -56,12 +56,13 @@ export function useCreateFoodPreference() {
       return data as unknown as FoodPreference
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['food-preferences'] })
+      queryClient.invalidateQueries({ queryKey: ['food-preferences', user?.id] })
     },
   })
 }
 
 export function useDeleteFoodPreference() {
+  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -73,7 +74,7 @@ export function useDeleteFoodPreference() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['food-preferences'] })
+      queryClient.invalidateQueries({ queryKey: ['food-preferences', user?.id] })
     },
   })
 }
@@ -97,7 +98,7 @@ export function useUpsertCuisinePreference() {
       return data as unknown as CuisinePreference
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cuisine-preferences'] })
+      queryClient.invalidateQueries({ queryKey: ['cuisine-preferences', user?.id] })
     },
   })
 }

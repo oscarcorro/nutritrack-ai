@@ -153,7 +153,7 @@ export default function OnboardingPage() {
         activity_level: activityLevel as ActivityLevel,
         exercise_days_per_week: exerciseDays,
         exercise_description: exerciseDesc || null,
-        health_notes: healthNotes || null,
+        health_notes: [healthNotes, dietNotes].filter(Boolean).join('\n') || null,
         onboarding_completed: true,
       })
 

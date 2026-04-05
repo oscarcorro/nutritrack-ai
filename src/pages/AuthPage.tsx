@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Navigate } from "react-router-dom"
+import { Navigate, useNavigate } from "react-router-dom"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/integrations/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import { Loader2, Leaf } from "lucide-react"
 
 export default function AuthPage() {
   const { user, loading } = useAuth()
+  const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Login state
@@ -65,7 +66,7 @@ export default function AuthPage() {
       return
     }
     setIsSubmitting(true)
-    const { error } = await supabase.auth.signUp({
+    const { data: signupData, error } = await supabase.auth.signUp({
       email: signupEmail,
       password: signupPassword,
       options: {
@@ -75,8 +76,9 @@ export default function AuthPage() {
     setIsSubmitting(false)
     if (error) {
       toast.error("Error al crear cuenta: " + error.message)
-    } else {
+    } else if (signupData.user) {
       toast.success("Cuenta creada correctamente")
+      navigate("/onboarding", { replace: true })
     }
   }
 

@@ -24,7 +24,12 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
     return <Navigate to="/auth" replace />
   }
 
-  if (requireOnboarding && profile && !profile.onboarding_completed) {
+  // Profile not yet created by trigger — redirect to onboarding which will wait
+  if (!profile) {
+    return <Navigate to="/onboarding" replace />
+  }
+
+  if (requireOnboarding && !profile.onboarding_completed) {
     return <Navigate to="/onboarding" replace />
   }
 

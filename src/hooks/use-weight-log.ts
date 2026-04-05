@@ -16,7 +16,7 @@ export function useWeightLog(days = 30) {
         .from('weight_log')
         .select('*')
         .eq('user_id', user.id)
-        .gte('measured_at', startDate.toISOString())
+        .gte('measured_at', startDate.toISOString().split('T')[0])
         .order('measured_at', { ascending: true })
       if (error) throw error
       return data as unknown as WeightLog[]
@@ -37,7 +37,7 @@ export function useCreateWeightLog() {
         .insert({
           user_id: user.id,
           weight_kg: entry.weight_kg,
-          measured_at: new Date().toISOString(),
+          measured_at: new Date().toISOString().split('T')[0],
           notes: entry.notes || null,
         } as never)
         .select()
@@ -46,7 +46,7 @@ export function useCreateWeightLog() {
       return data as unknown as WeightLog
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weight-log'] })
+      queryClient.invalidateQueries({ queryKey: ['weight-log', user?.id] })
     },
   })
 }

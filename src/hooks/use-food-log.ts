@@ -45,7 +45,7 @@ export function useCreateFoodLog() {
       return data as unknown as FoodLog
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['food-log'] })
+      queryClient.invalidateQueries({ queryKey: ['food-log', user?.id] })
     },
   })
 }
