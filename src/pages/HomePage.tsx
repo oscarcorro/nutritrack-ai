@@ -1,4 +1,7 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
+import { EditFoodLogDialog } from "@/components/log/EditFoodLogDialog"
+import type { FoodLog } from "@/integrations/supabase/types"
+import { Pencil } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useProfile } from "@/hooks/use-profile"
 import { useCurrentGoal } from "@/hooks/use-goals"
@@ -10,7 +13,6 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import { Plus, Scale, UtensilsCrossed } from "lucide-react"
-import { AppTour } from "@/components/onboarding/AppTour"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -93,10 +95,10 @@ export default function HomePage() {
   }
 
   const dateStr = format(new Date(), "EEEE, d 'de' MMMM", { locale: es })
+  const [editingLog, setEditingLog] = useState<FoodLog | null>(null)
 
   return (
     <div className="space-y-5">
-      <AppTour />
       {/* Greeting */}
       <div>
         <h2 className="text-2xl font-bold">Hola, {profile?.display_name?.split(" ")[0] || "amigo"}</h2>
@@ -178,21 +180,33 @@ export default function HomePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Registros de hoy</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-1">
             {foodLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <div>
-                  <p className="font-medium">{log.meal_name}</p>
+              <button
+                key={log.id}
+                onClick={() => setEditingLog(log)}
+                className="w-full flex items-center justify-between gap-2 py-2 border-b border-border last:border-0 text-left hover:bg-secondary/40 rounded-md px-1 -mx-1"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{log.meal_name}</p>
                   <p className="text-sm text-muted-foreground">
                     {log.meal_type ? `${MEAL_TYPE_ICONS[log.meal_type]} ${MEAL_TYPE_LABELS[log.meal_type]}` : ""}
                   </p>
                 </div>
                 <Badge variant="outline">{log.calories ? formatCalories(log.calories) : "--"}</Badge>
-              </div>
+                <Pencil className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
             ))}
+            <p className="text-xs text-muted-foreground pt-1">Toca un registro para editarlo o eliminarlo.</p>
           </CardContent>
         </Card>
       )}
+
+      <EditFoodLogDialog
+        log={editingLog}
+        open={!!editingLog}
+        onOpenChange={(v) => { if (!v) setEditingLog(null) }}
+      />
     </div>
   )
 }

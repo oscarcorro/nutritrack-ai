@@ -28,7 +28,7 @@ import { User, Pencil, LogOut, Loader2, X, Ruler, Weight, Calendar, Target } fro
 import { useNavigate } from "react-router-dom"
 import { PantrySection } from "@/components/pantry/PantrySection"
 import { TesterControls } from "@/components/admin/TesterControls"
-import { AppTour } from "@/components/onboarding/AppTour"
+import { openGuidedTour } from "@/components/onboarding/GuidedTour"
 import { HelpCircle } from "lucide-react"
 
 const GOAL_LABELS: Record<GoalType, string> = {
@@ -64,7 +64,6 @@ export default function ProfilePage() {
 
   // --- Profile edit dialog ---
   const [editOpen, setEditOpen] = useState(false)
-  const [tourOpen, setTourOpen] = useState(false)
   const [editName, setEditName] = useState("")
   const [editGender, setEditGender] = useState<Gender | "">("")
   const [editBirthDate, setEditBirthDate] = useState("")
@@ -358,11 +357,10 @@ export default function ProfilePage() {
       )}
 
       {/* App tour */}
-      <Button variant="outline" size="lg" className="w-full" onClick={() => setTourOpen(true)}>
+      <Button variant="outline" size="lg" className="w-full" onClick={() => openGuidedTour()}>
         <HelpCircle className="h-5 w-5 mr-2" />
         Ver guia de la app
       </Button>
-      {tourOpen && <AppTour forceOpen onClose={() => setTourOpen(false)} />}
 
       {/* Tester-only admin controls */}
       <TesterControls />

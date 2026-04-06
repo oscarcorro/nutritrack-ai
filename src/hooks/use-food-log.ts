@@ -29,6 +29,40 @@ export function useTodayFoodLog() {
   return useFoodLog(`${today}T00:00:00`, `${today}T23:59:59`)
 }
 
+export function useUpdateFoodLog() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<FoodLog> }) => {
+      const { data, error } = await supabase
+        .from('food_log')
+        .update(updates as never)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as unknown as FoodLog
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['food-log', user?.id] })
+    },
+  })
+}
+
+export function useDeleteFoodLog() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('food_log').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['food-log', user?.id] })
+    },
+  })
+}
+
 export function useCreateFoodLog() {
   const { user } = useAuth()
   const queryClient = useQueryClient()

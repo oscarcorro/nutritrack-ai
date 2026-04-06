@@ -48,3 +48,38 @@ body {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Subtle global animations for a smoother feel */
+@keyframes nt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes nt-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes nt-pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes nt-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.nt-fade-in { animation: nt-fade-in 220ms ease-out both; }
+.nt-page { animation: nt-fade-up 260ms ease-out both; }
+.nt-pop  { animation: nt-pop-in 220ms ease-out both; }
+.nt-slide-up { animation: nt-slide-up 260ms ease-out both; }
+
+/* Gentle hover/press feedback for tappable surfaces */
+button, a {
+  transition: transform 120ms ease, opacity 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+button:active, a:active { transform: scale(0.98); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nt-fade-in, .nt-page, .nt-pop, .nt-slide-up { animation: none; }
+  button, a { transition: none; }
+  button:active, a:active { transform: none; }
+}

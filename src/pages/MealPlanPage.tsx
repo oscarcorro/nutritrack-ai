@@ -16,6 +16,8 @@ import type { MealType } from "@/integrations/supabase/types"
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { DailyContextForm } from "@/components/plan/DailyContextForm"
+import { EditFoodLogDialog } from "@/components/log/EditFoodLogDialog"
+import type { FoodLog } from "@/integrations/supabase/types"
 
 function MealCard({
   item,
@@ -127,6 +129,7 @@ export default function MealPlanPage() {
   const suggestMeal = useSuggestMeal()
   const [suggestingType, setSuggestingType] = useState<MealType | null>(null)
   const [suggestNotes, setSuggestNotes] = useState("")
+  const [editingLog, setEditingLog] = useState<FoodLog | null>(null)
   const { start: startGenerate, isGenerating } = useMealPlanGeneration()
   const generating = isGenerating(dateStr)
 
@@ -261,19 +264,25 @@ export default function MealPlanPage() {
               <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Ya registrado hoy</p>
               {todayLog.map((l) => (
                 <Card key={l.id} className="bg-green-50 border-green-200">
-                  <CardContent className="p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium flex items-center gap-1">
-                        <Check className="h-4 w-4 text-green-700" />
-                        {l.meal_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {l.calories ?? 0} kcal · P {l.protein_g ?? 0}g · C {l.carbs_g ?? 0}g · G {l.fat_g ?? 0}g
-                      </p>
-                    </div>
-                    {l.meal_type && (
-                      <Badge variant="outline" className="text-xs">{MEAL_TYPE_LABELS[l.meal_type]}</Badge>
-                    )}
+                  <CardContent className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditingLog(l)}
+                      className="w-full flex items-center justify-between gap-2 text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium flex items-center gap-1">
+                          <Check className="h-4 w-4 text-green-700" />
+                          {l.meal_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {l.calories ?? 0} kcal · P {l.protein_g ?? 0}g · C {l.carbs_g ?? 0}g · G {l.fat_g ?? 0}g
+                        </p>
+                      </div>
+                      {l.meal_type && (
+                        <Badge variant="outline" className="text-xs">{MEAL_TYPE_LABELS[l.meal_type]}</Badge>
+                      )}
+                    </button>
                   </CardContent>
                 </Card>
               ))}
@@ -368,6 +377,12 @@ export default function MealPlanPage() {
           </Card>
         </>
       )}
+
+      <EditFoodLogDialog
+        log={editingLog}
+        open={!!editingLog}
+        onOpenChange={(v) => { if (!v) setEditingLog(null) }}
+      />
     </div>
   )
 }
