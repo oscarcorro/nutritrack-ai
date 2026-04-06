@@ -27,6 +27,7 @@ import type { ActivityLevel, Gender, GoalType, MealType } from "@/integrations/s
 import { User, Pencil, LogOut, Loader2, X, Ruler, Weight, Calendar, Target } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { PantrySection } from "@/components/pantry/PantrySection"
+import { TesterControls } from "@/components/admin/TesterControls"
 
 const GOAL_LABELS: Record<GoalType, string> = {
   lose_weight: "Perder grasa",
@@ -352,6 +353,9 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Tester-only admin controls */}
+      <TesterControls />
 
       {/* Sign out */}
       <Button variant="outline" size="lg" className="w-full text-destructive border-destructive/30" onClick={handleSignOut}>
