@@ -287,8 +287,8 @@ export function GuidedTour() {
       )}
 
       {/* Tour card */}
-      <div role="dialog" aria-label="Guia de la app" style={cardStyle} className="nt-slide-up">
-        <div className="rounded-2xl border border-border bg-background shadow-2xl p-4 space-y-3">
+      <div role="dialog" aria-label="Guia de la app" style={cardStyle}>
+        <div className="rounded-2xl border border-border bg-background shadow-2xl p-4 space-y-3 nt-fade-in">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
