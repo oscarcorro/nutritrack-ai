@@ -17,34 +17,52 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
-  const percentage = Math.min((consumed / target) * 100, 100)
-  const radius = 70
+  const rawPct = (consumed / target) * 100
+  const percentage = Math.min(rawPct, 100)
+  const radius = 78
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (percentage / 100) * circumference
-
-  const color = percentage > 100 ? "#ef4444" : "#16a34a"
+  const over = rawPct > 100
+  const remaining = Math.max(0, Math.round(target - consumed))
 
   return (
     <div className="relative flex items-center justify-center">
-      <svg width="180" height="180" viewBox="0 0 180 180">
-        <circle cx="90" cy="90" r={radius} fill="none" stroke="#e7e5e4" strokeWidth="12" />
+      <svg width="200" height="200" viewBox="0 0 200 200" className="drop-shadow-[0_8px_20px_rgba(21,134,74,0.18)]">
+        <defs>
+          <linearGradient id="nt-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#2bb76a" />
+            <stop offset="100%" stopColor="#117a41" />
+          </linearGradient>
+          <linearGradient id="nt-ring-over" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#e0453a" />
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r={radius} fill="none" stroke="#ece9e1" strokeWidth="14" />
         <circle
-          cx="90"
-          cy="90"
+          cx="100"
+          cy="100"
           r={radius}
           fill="none"
-          stroke={color}
-          strokeWidth="12"
+          stroke={over ? "url(#nt-ring-over)" : "url(#nt-ring-grad)"}
+          strokeWidth="14"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
-          transform="rotate(-90 90 90)"
-          className="transition-all duration-700"
+          transform="rotate(-90 100 100)"
+          style={{ transition: "stroke-dashoffset 900ms cubic-bezier(0.2, 0.8, 0.2, 1)" }}
         />
       </svg>
       <div className="absolute text-center">
-        <p className="text-3xl font-bold">{Math.round(consumed)}</p>
-        <p className="text-sm text-muted-foreground">de {formatCalories(target)}</p>
+        <p className="text-[13px] font-medium text-muted-foreground uppercase tracking-wide">
+          {over ? "Excedido" : "Restantes"}
+        </p>
+        <p className="text-4xl font-bold leading-tight tabular-nums">
+          {over ? Math.round(consumed - target) : remaining}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {Math.round(consumed)} / {formatCalories(target)}
+        </p>
       </div>
     </div>
   )
@@ -83,53 +101,81 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-[200px] w-full" />
-        <div className="grid grid-cols-3 gap-3">
-          <Skeleton className="h-16" />
-          <Skeleton className="h-16" />
-          <Skeleton className="h-16" />
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <div className="h-7 w-48 rounded-lg nt-shimmer" />
+          <div className="h-4 w-32 rounded nt-shimmer" />
         </div>
-        <Skeleton className="h-24 w-full" />
+        <div className="h-[300px] w-full rounded-2xl nt-shimmer" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-14 rounded-xl nt-shimmer" />
+          <div className="h-14 rounded-xl nt-shimmer" />
+        </div>
+        <div className="h-24 w-full rounded-2xl nt-shimmer" />
       </div>
     )
   }
 
   const dateStr = format(new Date(), "EEEE, d 'de' MMMM", { locale: es })
 
+  const macroPct = (val: number, target: number) =>
+    Math.max(0, Math.min(100, target > 0 ? (val / target) * 100 : 0))
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 nt-stagger">
       {/* Greeting */}
       <div>
-        <h2 className="text-2xl font-bold">Hola, {profile?.display_name?.split(" ")[0] || "amigo"}</h2>
-        <p className="text-muted-foreground capitalize">{dateStr}</p>
+        <p className="text-sm text-muted-foreground capitalize">{dateStr}</p>
+        <h2 className="text-[28px] font-bold tracking-tight leading-tight">
+          Hola, {profile?.display_name?.split(" ")[0] || "amigo"}
+        </h2>
       </div>
 
       {/* Calorie ring */}
       {goal && (
-        <Card>
-          <CardContent className="flex flex-col items-center py-5">
+        <Card data-tour="ring" className="overflow-hidden">
+          <CardContent className="flex flex-col items-center py-6">
             <CalorieRing consumed={todayStats.calories} target={goal.daily_calories_target} />
-            {/* Macro badges */}
-            <div className="grid grid-cols-3 gap-3 w-full mt-4">
-              <div className="text-center p-2 rounded-xl bg-blue-50">
-                <p className="text-xs text-muted-foreground">Proteina</p>
-                <p className="text-base font-bold text-blue-700">
-                  {formatMacro(todayStats.protein)} / {formatMacro(goal.protein_g)}
+            {/* Macro bars */}
+            <div className="grid grid-cols-3 gap-3 w-full mt-5">
+              <div className="p-3 rounded-xl bg-[#eff6ff] border border-[#dbeafe]">
+                <p className="text-[11px] font-medium text-blue-700/80 uppercase tracking-wide">Proteina</p>
+                <p className="text-[15px] font-bold text-blue-800 tabular-nums mt-0.5">
+                  {formatMacro(todayStats.protein)}
+                  <span className="text-xs font-medium text-blue-700/70"> / {formatMacro(goal.protein_g)}</span>
                 </p>
+                <div className="mt-2 h-1.5 rounded-full bg-blue-100 overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all duration-700"
+                    style={{ width: `${macroPct(todayStats.protein, goal.protein_g)}%` }}
+                  />
+                </div>
               </div>
-              <div className="text-center p-2 rounded-xl bg-amber-50">
-                <p className="text-xs text-muted-foreground">Carbos</p>
-                <p className="text-base font-bold text-amber-700">
-                  {formatMacro(todayStats.carbs)} / {formatMacro(goal.carbs_g)}
+              <div className="p-3 rounded-xl bg-[#fffbeb] border border-[#fde68a]">
+                <p className="text-[11px] font-medium text-amber-700/80 uppercase tracking-wide">Carbos</p>
+                <p className="text-[15px] font-bold text-amber-800 tabular-nums mt-0.5">
+                  {formatMacro(todayStats.carbs)}
+                  <span className="text-xs font-medium text-amber-700/70"> / {formatMacro(goal.carbs_g)}</span>
                 </p>
+                <div className="mt-2 h-1.5 rounded-full bg-amber-100 overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all duration-700"
+                    style={{ width: `${macroPct(todayStats.carbs, goal.carbs_g)}%` }}
+                  />
+                </div>
               </div>
-              <div className="text-center p-2 rounded-xl bg-rose-50">
-                <p className="text-xs text-muted-foreground">Grasa</p>
-                <p className="text-base font-bold text-rose-700">
-                  {formatMacro(todayStats.fat)} / {formatMacro(goal.fat_g)}
+              <div className="p-3 rounded-xl bg-[#fff1f2] border border-[#fecdd3]">
+                <p className="text-[11px] font-medium text-rose-700/80 uppercase tracking-wide">Grasa</p>
+                <p className="text-[15px] font-bold text-rose-800 tabular-nums mt-0.5">
+                  {formatMacro(todayStats.fat)}
+                  <span className="text-xs font-medium text-rose-700/70"> / {formatMacro(goal.fat_g)}</span>
                 </p>
+                <div className="mt-2 h-1.5 rounded-full bg-rose-100 overflow-hidden">
+                  <div
+                    className="h-full bg-rose-500 rounded-full transition-all duration-700"
+                    style={{ width: `${macroPct(todayStats.fat, goal.fat_g)}%` }}
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
@@ -137,7 +183,7 @@ export default function HomePage() {
       )}
 
       {/* Quick actions */}
-      <div className="grid grid-cols-2 gap-3">
+      <div data-tour="quick-actions" className="grid grid-cols-2 gap-3">
         <Button asChild size="lg" className="h-14 text-base">
           <Link to="/registrar">
             <Plus className="h-5 w-5 mr-2" />

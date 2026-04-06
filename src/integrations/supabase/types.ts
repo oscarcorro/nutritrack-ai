@@ -4,6 +4,7 @@ export type UserRole = 'user' | 'admin'
 export type Gender = 'male' | 'female'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
 export type GoalType = 'lose_weight' | 'maintain' | 'gain_muscle'
+export type GoalIntensity = 'light' | 'moderate' | 'aggressive'
 export type MealType = 'breakfast' | 'morning_snack' | 'lunch' | 'afternoon_snack' | 'dinner'
 export type LogInputMethod = 'photo' | 'audio' | 'text' | 'manual'
 export type PreferenceType = 'like' | 'dislike' | 'allergy' | 'intolerance'
@@ -41,6 +42,7 @@ export interface UserGoal {
   fiber_g: number
   meals_per_day: number
   goal_type: GoalType
+  intensity: GoalIntensity
   is_current: boolean
   notes: string | null
   created_at: string

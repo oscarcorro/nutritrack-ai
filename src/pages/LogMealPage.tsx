@@ -270,7 +270,7 @@ export default function LogMealPage() {
       <h2 className="text-2xl font-bold">Registrar comida</h2>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList data-tour="log-tabs">
           <TabsTrigger value="photo" className="gap-1">
             <Camera className="h-4 w-4" /> Foto
           </TabsTrigger>

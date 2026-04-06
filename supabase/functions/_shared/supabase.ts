@@ -109,6 +109,7 @@ OBJETIVOS NUTRICIONALES:
 - Peso actual: ${p.weight_kg ?? g?.starting_weight_kg ?? "?"} kg
 - Peso objetivo: ${g?.target_weight_kg ?? "?"} kg
 - Tipo de objetivo: ${g?.goal_type ?? "?"}
+- Intensidad: ${g?.intensity ?? "moderate"} (light/moderate/aggressive)
 - Calorias/dia: ${g?.daily_calories_target ?? "?"} kcal
 - Proteina: ${g?.protein_g ?? "?"} g
 - Carbos: ${g?.carbs_g ?? "?"} g

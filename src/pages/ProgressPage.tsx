@@ -108,7 +108,7 @@ export default function ProgressPage() {
       <h2 className="text-2xl font-bold">Tu progreso</h2>
 
       {/* Quick weight entry */}
-      <Card>
+      <Card data-tour="weight">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Registrar peso de hoy</CardTitle>
         </CardHeader>

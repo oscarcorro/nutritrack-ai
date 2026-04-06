@@ -251,7 +251,7 @@ export default function MealPlanPage() {
               </CardContent>
             </Card>
           )}
-          <DailyContextForm onSubmit={handleGenerateWithContext} generating={generating} />
+          <div data-tour="plan-generate"><DailyContextForm onSubmit={handleGenerateWithContext} generating={generating} /></div>
           {generating && (
             <p className="text-xs text-muted-foreground text-center">Puedes cambiar de pestaña, seguiremos generando.</p>
           )}

@@ -22,8 +22,10 @@ import {
   calculateTDEE,
   calculateCalorieTarget,
   calculateMacros,
+  INTENSITY_LABELS,
+  describeIntensity,
 } from "@/lib/nutrition"
-import type { ActivityLevel, Gender, GoalType, MealType } from "@/integrations/supabase/types"
+import type { ActivityLevel, Gender, GoalType, GoalIntensity, MealType } from "@/integrations/supabase/types"
 import { User, Pencil, LogOut, Loader2, X, Ruler, Weight, Calendar, Target } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { PantrySection } from "@/components/pantry/PantrySection"
@@ -122,6 +124,7 @@ export default function ProfilePage() {
   // --- Goal edit dialog ---
   const [goalOpen, setGoalOpen] = useState(false)
   const [goalType, setGoalType] = useState<GoalType>("lose_weight")
+  const [goalIntensity, setGoalIntensity] = useState<GoalIntensity>("moderate")
   const [goalStartWeight, setGoalStartWeight] = useState("")
   const [goalTargetWeight, setGoalTargetWeight] = useState("")
   const [goalCalories, setGoalCalories] = useState("")
@@ -133,6 +136,7 @@ export default function ProfilePage() {
 
   const openGoal = () => {
     setGoalType((goal?.goal_type as GoalType) || "lose_weight")
+    setGoalIntensity((goal?.intensity as GoalIntensity) || "moderate")
     setGoalStartWeight(goal?.starting_weight_kg?.toString() || profile?.weight_kg?.toString() || "")
     setGoalTargetWeight(goal?.target_weight_kg?.toString() || "")
     setGoalCalories(goal?.daily_calories_target?.toString() || "")
@@ -151,8 +155,8 @@ export default function ProfilePage() {
     const age = calculateAge(profile.birth_date)
     const bmr = calculateBMR(profile.weight_kg, profile.height_cm, age, profile.gender)
     const tdee = calculateTDEE(bmr, profile.activity_level)
-    const cals = calculateCalorieTarget(tdee, goalType)
-    const macros = calculateMacros(cals, goalType)
+    const cals = calculateCalorieTarget(tdee, goalType, goalIntensity, profile.gender)
+    const macros = calculateMacros(cals, goalType, profile.weight_kg)
     setGoalCalories(cals.toString())
     setGoalProtein(macros.protein_g.toString())
     setGoalCarbs(macros.carbs_g.toString())
@@ -181,6 +185,7 @@ export default function ProfilePage() {
         fiber_g: 25,
         meals_per_day: parseInt(goalMeals) || 5,
         goal_type: goalType,
+        intensity: goalIntensity,
         is_current: true,
         notes: null,
       })
@@ -278,7 +283,7 @@ export default function ProfilePage() {
       </Card>
 
       {/* Current goal */}
-      <Card>
+      <Card data-tour="goals">
         <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Objetivo actual</CardTitle>
           <Button variant="ghost" size="icon" onClick={openGoal} aria-label="Editar objetivo">
@@ -325,7 +330,9 @@ export default function ProfilePage() {
       </Card>
 
       {/* Pantry */}
-      <PantrySection />
+      <div data-tour="pantry">
+        <PantrySection />
+      </div>
 
       {/* Food preferences */}
       {foodPrefs && foodPrefs.length > 0 && (
@@ -482,6 +489,30 @@ export default function ProfilePage() {
                 </SelectContent>
               </Select>
             </div>
+            {goalType !== "maintain" && (
+              <div className="space-y-2">
+                <Label>Intensidad del {goalType === "lose_weight" ? "deficit" : "superavit"}</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["light", "moderate", "aggressive"] as GoalIntensity[]).map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setGoalIntensity(lvl)}
+                      className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${
+                        goalIntensity === lvl
+                          ? "border-primary border-2 bg-accent text-primary"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      {INTENSITY_LABELS[lvl]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {describeIntensity(goalType, goalIntensity)}
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Peso actual (kg)</Label>

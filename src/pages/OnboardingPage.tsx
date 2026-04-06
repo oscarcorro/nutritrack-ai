@@ -28,7 +28,8 @@ import {
   formatCalories,
   formatMacro,
 } from "@/lib/nutrition"
-import type { ActivityLevel, Gender, GoalType, PreferenceType } from "@/integrations/supabase/types"
+import type { ActivityLevel, Gender, GoalType, GoalIntensity, PreferenceType } from "@/integrations/supabase/types"
+import { INTENSITY_LABELS, describeIntensity } from "@/lib/nutrition"
 import { ChevronLeft, ChevronRight, Loader2, Target, Scale, Dumbbell, X } from "lucide-react"
 
 const CUISINES = [
@@ -63,6 +64,7 @@ export default function OnboardingPage() {
 
   // Step 2
   const [goalType, setGoalType] = useState<GoalType | "">("")
+  const [intensity, setIntensity] = useState<GoalIntensity>("moderate")
   const [exerciseDays, setExerciseDays] = useState(3)
   const [exerciseDesc, setExerciseDesc] = useState("")
   const [healthNotes, setHealthNotes] = useState("")
@@ -85,8 +87,8 @@ export default function OnboardingPage() {
   const idealWeight = numHeight && gender ? calculateIdealWeight(numHeight, gender as Gender) : 0
   const bmr = numWeight && numHeight && age && gender ? calculateBMR(numWeight, numHeight, age, gender as Gender) : 0
   const tdee = bmr && activityLevel ? calculateTDEE(bmr, activityLevel as ActivityLevel) : 0
-  const calorieTarget = tdee && goalType ? calculateCalorieTarget(tdee, goalType as GoalType) : 0
-  const macros = calorieTarget && goalType ? calculateMacros(calorieTarget, goalType as GoalType) : null
+  const calorieTarget = tdee && goalType ? calculateCalorieTarget(tdee, goalType as GoalType, intensity, gender as Gender) : 0
+  const macros = calorieTarget && goalType ? calculateMacros(calorieTarget, goalType as GoalType, numWeight) : null
 
   const addFoodTag = () => {
     const trimmed = foodInput.trim()
@@ -169,6 +171,7 @@ export default function OnboardingPage() {
         fiber_g: macros!.fiber_g,
         meals_per_day: 5,
         goal_type: goalType as GoalType,
+        intensity,
         is_current: true,
         notes: null,
       })
@@ -313,6 +316,30 @@ export default function OnboardingPage() {
               </Card>
             ))}
           </div>
+          {goalType && goalType !== "maintain" && (
+            <div className="space-y-2">
+              <Label>Intensidad del {goalType === "lose_weight" ? "deficit" : "superavit"}</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(["light", "moderate", "aggressive"] as GoalIntensity[]).map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => setIntensity(lvl)}
+                    className={`py-3 rounded-xl border text-sm font-semibold transition-all ${
+                      intensity === lvl
+                        ? "border-primary border-2 bg-accent text-primary"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    {INTENSITY_LABELS[lvl]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {describeIntensity(goalType as GoalType, intensity)}
+              </p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Dias de ejercicio por semana: {exerciseDays}</Label>
             <Slider
