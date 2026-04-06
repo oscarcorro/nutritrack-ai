@@ -26,7 +26,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // If the refresh token is invalid/expired, Supabase fires TOKEN_REFRESHED
+      // with a null session. Wipe local state and send user back to /auth so
+      // they can sign in again instead of being stuck with broken API calls.
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        supabase.auth.signOut().catch(() => {})
+      }
       setSession(session)
       setLoading(false)
     })
