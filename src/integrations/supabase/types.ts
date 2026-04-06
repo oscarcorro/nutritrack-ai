@@ -144,6 +144,17 @@ export interface BodyMeasurement {
   created_at: string
 }
 
+export interface PantryItem {
+  id: string
+  user_id: string
+  name: string
+  quantity_estimate: string | null
+  category: string | null
+  expires_at: string | null
+  source: string | null
+  created_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -156,6 +167,7 @@ export interface Database {
       food_log: { Row: FoodLog; Insert: Omit<FoodLog, 'id' | 'created_at' | 'updated_at'>; Update: Partial<FoodLog> }
       weight_log: { Row: WeightLog; Insert: Omit<WeightLog, 'id' | 'created_at'>; Update: Partial<WeightLog> }
       body_measurements: { Row: BodyMeasurement; Insert: Omit<BodyMeasurement, 'id' | 'created_at'>; Update: Partial<BodyMeasurement> }
+      pantry_items: { Row: PantryItem; Insert: Omit<PantryItem, 'id' | 'created_at'>; Update: Partial<PantryItem> }
     }
   }
 }

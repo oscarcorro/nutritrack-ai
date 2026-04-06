@@ -3,7 +3,7 @@
 // Returns: { meal_name, description, items, calories, protein_g, carbs_g, fat_g, fiber_g, confidence, model }
 
 import { corsHeaders } from "../_shared/cors.ts"
-import { callAnthropic, extractJSON, AnthropicContentBlock } from "../_shared/anthropic.ts"
+import { callAnthropic, extractJSON, AnthropicContentBlock, WEB_SEARCH_TOOL } from "../_shared/anthropic.ts"
 import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from "../_shared/supabase.ts"
 
 interface RequestBody {
@@ -13,7 +13,11 @@ interface RequestBody {
   media_type?: string
 }
 
-const SYSTEM = `Eres un nutricionista experto. Analiza lo que ha comido el usuario y devuelve SOLO JSON valido con esta estructura exacta:
+const SYSTEM = `Eres un nutricionista experto. Analiza lo que ha comido el usuario y devuelve SOLO JSON valido.
+
+IMPORTANTE: Si el usuario menciona una marca concreta (ej. "Kefir de cabra Pastoret", "Activia de Danone", "Barrita Hacendado"), usa la herramienta web_search para buscar los macronutrientes reales de ese producto y ser preciso. No busques para alimentos genéricos.
+
+Estructura:
 {
   "meal_name": "nombre corto del plato",
   "description": "descripcion breve",
@@ -71,8 +75,9 @@ Deno.serve(async (req: Request) => {
       model,
       system: SYSTEM,
       messages: [{ role: "user", content }],
-      max_tokens: 1024,
+      max_tokens: 2048,
       temperature: 0.3,
+      tools: [WEB_SEARCH_TOOL],
     })
 
     const parsed = extractJSON<Record<string, unknown>>(text)

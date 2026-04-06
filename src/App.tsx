@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "@/contexts/AuthContext"
+import { MealPlanGenerationProvider } from "@/contexts/MealPlanGenerationContext"
 import { Toaster } from "@/components/ui/toaster"
 import { MobileLayout } from "@/components/layout/MobileLayout"
 import { ProtectedRoute } from "@/components/shared/ProtectedRoute"
@@ -28,6 +29,7 @@ function App() {
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <MealPlanGenerationProvider>
           <Routes>
             {/* Public */}
             <Route path="/auth" element={<AuthPage />} />
@@ -63,6 +65,7 @@ function App() {
             <Route path="*" element={<Navigate to="/inicio" replace />} />
           </Routes>
           <Toaster />
+          </MealPlanGenerationProvider>
         </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>

@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react"
 import { useMealPlan } from "@/hooks/use-meal-plan"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
-import { useGenerateMealPlan, useSwapMeal } from "@/hooks/use-ai"
+import { useSwapMeal } from "@/hooks/use-ai"
+import { useMealPlanGeneration } from "@/contexts/MealPlanGenerationContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, SkipForward, ChevronDown, ChevronUp, Loader2, CalendarDays } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, CalendarDays, UtensilsCrossed } from "lucide-react"
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -62,18 +63,41 @@ function MealCard({
           <Badge variant="outline" className="text-xs">G: {item.fat_g ? formatMacro(item.fat_g) : "--"}</Badge>
         </div>
 
-        {/* Description toggle */}
-        {item.description && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-sm text-primary font-medium min-h-[40px]"
-          >
-            {expanded ? "Ocultar" : "Ver detalle"}
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-        )}
-        {expanded && item.description && (
-          <p className="text-sm text-muted-foreground bg-secondary/50 p-3 rounded-xl">{item.description}</p>
+        {/* Recipe toggle */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 text-sm text-primary font-medium min-h-[40px]"
+        >
+          {expanded ? "Ocultar receta" : "Ver receta"}
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        {expanded && (
+          <div className="space-y-3 bg-secondary/50 p-3 rounded-xl">
+            {Array.isArray(item.ingredients) && (item.ingredients as Array<{ name: string; quantity_g: number }>).length > 0 && (
+              <div>
+                <div className="flex items-center gap-1 mb-2 text-sm font-semibold">
+                  <UtensilsCrossed className="h-4 w-4" /> Ingredientes
+                </div>
+                <ul className="text-sm space-y-1">
+                  {(item.ingredients as Array<{ name: string; quantity_g: number }>).map((ing, idx) => (
+                    <li key={idx} className="flex justify-between">
+                      <span>{ing.name}</span>
+                      <span className="text-muted-foreground tabular-nums">{ing.quantity_g} g</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {item.description && (
+              <div>
+                <p className="text-sm font-semibold mb-1">Preparacion</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.description}</p>
+              </div>
+            )}
+            {item.prep_time_min != null && (
+              <p className="text-xs text-muted-foreground">Tiempo: ~{item.prep_time_min} min</p>
+            )}
+          </div>
         )}
 
         {/* Actions */}
@@ -83,9 +107,6 @@ function MealCard({
           </Button>
           <Button size="sm" variant="outline" className="flex-1" onClick={handleSwap} disabled={swapping}>
             {swapping ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cambiar"}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => toast.info("Comida omitida")}>
-            <SkipForward className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>
@@ -98,16 +119,13 @@ export default function MealPlanPage() {
   const dateStr = format(date, "yyyy-MM-dd")
   const { data: plan, isLoading } = useMealPlan(dateStr)
   const createFoodLog = useCreateFoodLog()
-  const generatePlan = useGenerateMealPlan()
   const swapMeal = useSwapMeal()
+  const { start: startGenerate, isGenerating } = useMealPlanGeneration()
+  const generating = isGenerating(dateStr)
 
-  const handleGenerate = async () => {
-    try {
-      await generatePlan.mutateAsync(dateStr)
-      toast.success("Plan generado")
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al generar plan")
-    }
+  const handleGenerate = () => {
+    // Fire-and-forget so navigation doesn't cancel the request.
+    void startGenerate(dateStr)
   }
 
   const handleSwap = async (item: MealPlanItem) => {
@@ -189,9 +207,12 @@ export default function MealPlanPage() {
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
           <CalendarDays className="h-16 w-16 text-muted-foreground" />
           <p className="text-lg text-muted-foreground text-center">No hay plan para este dia</p>
-          <Button size="lg" onClick={handleGenerate} disabled={generatePlan.isPending}>
-            {generatePlan.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generando...</> : "Generar plan con IA"}
+          <Button size="lg" onClick={handleGenerate} disabled={generating}>
+            {generating ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generando...</> : "Generar plan con IA"}
           </Button>
+          {generating && (
+            <p className="text-xs text-muted-foreground text-center">Puedes cambiar de pestaña, seguiremos generando.</p>
+          )}
         </div>
       ) : (
         <>

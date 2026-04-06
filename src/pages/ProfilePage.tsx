@@ -26,6 +26,7 @@ import {
 import type { ActivityLevel, Gender, GoalType } from "@/integrations/supabase/types"
 import { User, Pencil, LogOut, Loader2, X, Ruler, Weight, Calendar, Target } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { PantrySection } from "@/components/pantry/PantrySection"
 
 const GOAL_LABELS: Record<GoalType, string> = {
   lose_weight: "Perder grasa",
@@ -301,6 +302,9 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pantry */}
+      <PantrySection />
 
       {/* Food preferences */}
       {foodPrefs && foodPrefs.length > 0 && (

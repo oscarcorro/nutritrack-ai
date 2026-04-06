@@ -3,7 +3,7 @@
 // Generates a personalized daily meal plan and inserts it into meal_plans + meal_plan_items.
 
 import { corsHeaders } from "../_shared/cors.ts"
-import { callAnthropic, extractJSON } from "../_shared/anthropic.ts"
+import { callAnthropic, extractJSON, WEB_SEARCH_TOOL } from "../_shared/anthropic.ts"
 import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from "../_shared/supabase.ts"
 
 interface RequestBody {
@@ -39,6 +39,7 @@ Debes crear un plan para UN dia completo respetando:
 - Usar ingredientes comunes y faciles de encontrar en Espana
 - Recetas realistas, practicas y sabrosas
 - Proporcionar el numero de comidas indicado
+- Si hay despensa del usuario, prioriza esos ingredientes (especialmente con marcas concretas). Puedes usar web_search para buscar macros reales de productos de marca si los usas.
 
 Devuelve SOLO JSON valido con esta estructura:
 {
@@ -92,8 +93,9 @@ Deno.serve(async (req: Request) => {
           content: `${contextPrompt}\n\nGenera el plan de comidas para el dia ${plan_date}. Respeta el total de calorias y macros diarios.`,
         },
       ],
-      max_tokens: 4096,
+      max_tokens: 8192,
       temperature: 0.8,
+      tools: [WEB_SEARCH_TOOL],
     })
 
     const parsed = extractJSON<GeneratedPlan>(text)

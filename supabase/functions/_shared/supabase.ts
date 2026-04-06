@@ -26,13 +26,14 @@ export interface UserContext {
   foodPrefs: Record<string, unknown>[]
   cuisinePrefs: Record<string, unknown>[]
   recentPlans: Record<string, unknown>[]
+  pantry: Record<string, unknown>[]
 }
 
 export async function loadUserContext(
   client: SupabaseClient,
   userId: string
 ): Promise<UserContext> {
-  const [profileRes, goalRes, foodRes, cuisineRes, plansRes] = await Promise.all([
+  const [profileRes, goalRes, foodRes, cuisineRes, plansRes, pantryRes] = await Promise.all([
     client.from("profiles").select("*").eq("id", userId).maybeSingle(),
     client
       .from("user_goals")
@@ -48,6 +49,10 @@ export async function loadUserContext(
       .eq("user_id", userId)
       .order("plan_date", { ascending: false })
       .limit(3),
+    client
+      .from("pantry_items")
+      .select("name, quantity_estimate, category")
+      .eq("user_id", userId),
   ])
 
   return {
@@ -56,6 +61,7 @@ export async function loadUserContext(
     foodPrefs: (foodRes.data ?? []) as Record<string, unknown>[],
     cuisinePrefs: (cuisineRes.data ?? []) as Record<string, unknown>[],
     recentPlans: (plansRes.data ?? []) as Record<string, unknown>[],
+    pantry: (pantryRes.data ?? []) as Record<string, unknown>[],
   }
 }
 
@@ -69,6 +75,9 @@ export function buildUserContextPrompt(ctx: UserContext): string {
     .filter((f) => f.preference_type === "intolerance")
     .map((f) => f.food_name)
   const cuisines = ctx.cuisinePrefs.filter((c) => c.is_preferred).map((c) => c.cuisine_name)
+  const pantry = ctx.pantry
+    .map((p) => `- ${p.name}${p.quantity_estimate ? ` (${p.quantity_estimate})` : ""}${p.category ? ` [${p.category}]` : ""}`)
+    .join("\n")
   const recent = ctx.recentPlans
     .map((pl) => {
       const items = ((pl.meal_plan_items as unknown[]) ?? [])
@@ -103,6 +112,9 @@ PREFERENCIAS ALIMENTARIAS:
 - Alergias: ${allergies.join(", ") || "ninguna"}
 - Intolerancias: ${intolerances.join(", ") || "ninguna"}
 - Cocinas preferidas: ${cuisines.join(", ") || "variadas"}
+
+DESPENSA / NEVERA DEL USUARIO (usa estos ingredientes preferentemente cuando sea posible, respetando marcas si se indican):
+${pantry || "sin informacion - usa ingredientes comunes"}
 
 PLANES RECIENTES (evitar repetir):
 ${recent || "ninguno"}

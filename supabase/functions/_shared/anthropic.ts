@@ -22,6 +22,17 @@ export interface AnthropicCallOptions {
   messages: AnthropicMessage[]
   max_tokens?: number
   temperature?: number
+  tools?: Array<Record<string, unknown>>
+}
+
+/**
+ * Enables Claude's built-in web search tool so the model can look up real
+ * macronutrient data for branded products instead of guessing.
+ */
+export const WEB_SEARCH_TOOL = {
+  type: "web_search_20250305",
+  name: "web_search",
+  max_uses: 3,
 }
 
 const API_URL = "https://api.anthropic.com/v1/messages"
@@ -43,6 +54,7 @@ export async function callAnthropic(opts: AnthropicCallOptions): Promise<string>
       temperature: opts.temperature ?? 0.7,
       system: opts.system,
       messages: opts.messages,
+      ...(opts.tools && opts.tools.length > 0 ? { tools: opts.tools } : {}),
     }),
   })
 
@@ -52,9 +64,13 @@ export async function callAnthropic(opts: AnthropicCallOptions): Promise<string>
   }
 
   const json = await res.json()
-  const block = json.content?.[0]
-  if (!block || block.type !== "text") throw new Error("No text response")
-  return block.text as string
+  // When tools run, the content array may contain tool_use and tool_result
+  // blocks before the final text block. Find the last text block.
+  const blocks = (json.content ?? []) as Array<{ type: string; text?: string }>
+  const textBlocks = blocks.filter((b) => b.type === "text" && typeof b.text === "string")
+  const last = textBlocks[textBlocks.length - 1]
+  if (!last?.text) throw new Error("No text response from model")
+  return last.text
 }
 
 /**
