@@ -10,9 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, CalendarDays, UtensilsCrossed } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed } from "lucide-react"
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
+import { DailyContextForm } from "@/components/plan/DailyContextForm"
 
 function MealCard({
   item,
@@ -123,9 +124,12 @@ export default function MealPlanPage() {
   const { start: startGenerate, isGenerating } = useMealPlanGeneration()
   const generating = isGenerating(dateStr)
 
-  const handleGenerate = () => {
+  const handleGenerateWithContext = (activities: string, preferences: string) => {
     // Fire-and-forget so navigation doesn't cancel the request.
-    void startGenerate(dateStr)
+    void startGenerate(dateStr, {
+      daily_activities: activities || undefined,
+      preferences: preferences || undefined,
+    })
   }
 
   const handleSwap = async (item: MealPlanItem) => {
@@ -204,12 +208,8 @@ export default function MealPlanPage() {
           ))}
         </div>
       ) : !plan ? (
-        <div className="flex flex-col items-center justify-center py-16 space-y-4">
-          <CalendarDays className="h-16 w-16 text-muted-foreground" />
-          <p className="text-lg text-muted-foreground text-center">No hay plan para este dia</p>
-          <Button size="lg" onClick={handleGenerate} disabled={generating}>
-            {generating ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generando...</> : "Generar plan con IA"}
-          </Button>
+        <div className="space-y-3">
+          <DailyContextForm onSubmit={handleGenerateWithContext} generating={generating} />
           {generating && (
             <p className="text-xs text-muted-foreground text-center">Puedes cambiar de pestaña, seguiremos generando.</p>
           )}

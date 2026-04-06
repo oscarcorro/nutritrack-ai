@@ -76,10 +76,23 @@ export default function AuthPage() {
     setIsSubmitting(false)
     if (error) {
       toast.error("Error al crear cuenta: " + error.message)
-    } else if (signupData.user) {
-      toast.success("Cuenta creada correctamente")
-      navigate("/onboarding", { replace: true })
+      return
     }
+    // With email auto-confirm enabled server-side, signUp returns an active
+    // session. If for any reason it doesn't, sign in explicitly so the user
+    // lands on onboarding already logged in.
+    if (!signupData.session) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: signupEmail,
+        password: signupPassword,
+      })
+      if (signInErr) {
+        toast.error("Cuenta creada pero no se pudo iniciar sesion: " + signInErr.message)
+        return
+      }
+    }
+    toast.success("Cuenta creada correctamente")
+    navigate("/onboarding", { replace: true })
   }
 
   return (

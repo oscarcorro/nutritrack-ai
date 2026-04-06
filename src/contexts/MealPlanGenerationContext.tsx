@@ -4,9 +4,14 @@ import { supabase } from "@/integrations/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
 
+export interface GenerateOptions {
+  daily_activities?: string
+  preferences?: string
+}
+
 interface Ctx {
   isGenerating: (date: string) => boolean
-  start: (date: string) => Promise<void>
+  start: (date: string, options?: GenerateOptions) => Promise<void>
 }
 
 const MealPlanGenerationContext = createContext<Ctx | null>(null)
@@ -26,13 +31,17 @@ export function MealPlanGenerationProvider({ children }: { children: ReactNode }
   const isGenerating = useCallback((date: string) => inFlight.current.has(date), [])
 
   const start = useCallback(
-    async (date: string) => {
+    async (date: string, options?: GenerateOptions) => {
       if (inFlight.current.has(date)) return
       inFlight.current.add(date)
       force((n) => n + 1)
       try {
         const { data, error } = await supabase.functions.invoke("ai-generate-meal-plan", {
-          body: { plan_date: date },
+          body: {
+            plan_date: date,
+            daily_activities: options?.daily_activities,
+            preferences: options?.preferences,
+          },
         })
         if (error) throw error
         if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error)

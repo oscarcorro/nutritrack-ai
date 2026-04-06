@@ -23,7 +23,7 @@ import {
   calculateCalorieTarget,
   calculateMacros,
 } from "@/lib/nutrition"
-import type { ActivityLevel, Gender, GoalType } from "@/integrations/supabase/types"
+import type { ActivityLevel, Gender, GoalType, MealType } from "@/integrations/supabase/types"
 import { User, Pencil, LogOut, Loader2, X, Ruler, Weight, Calendar, Target } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { PantrySection } from "@/components/pantry/PantrySection"
@@ -32,6 +32,21 @@ const GOAL_LABELS: Record<GoalType, string> = {
   lose_weight: "Perder grasa",
   maintain: "Mantener peso",
   gain_muscle: "Ganar musculo",
+}
+
+const MEAL_SCHEDULE_LABELS: Record<MealType, string> = {
+  breakfast: "Desayuno",
+  morning_snack: "Media mañana",
+  lunch: "Comida",
+  afternoon_snack: "Merienda",
+  dinner: "Cena",
+}
+const DEFAULT_MEAL_TIMES: Record<MealType, string> = {
+  breakfast: "08:00",
+  morning_snack: "11:00",
+  lunch: "14:00",
+  afternoon_snack: "17:30",
+  dinner: "20:30",
 }
 
 export default function ProfilePage() {
@@ -55,6 +70,7 @@ export default function ProfilePage() {
   const [editExerciseDays, setEditExerciseDays] = useState("")
   const [editExerciseDesc, setEditExerciseDesc] = useState("")
   const [editHealthNotes, setEditHealthNotes] = useState("")
+  const [editMealSchedule, setEditMealSchedule] = useState<Record<MealType, string>>(DEFAULT_MEAL_TIMES)
   const [saving, setSaving] = useState(false)
 
   const openEdit = () => {
@@ -68,6 +84,7 @@ export default function ProfilePage() {
     setEditExerciseDays(profile.exercise_days_per_week?.toString() || "")
     setEditExerciseDesc(profile.exercise_description || "")
     setEditHealthNotes(profile.health_notes || "")
+    setEditMealSchedule({ ...DEFAULT_MEAL_TIMES, ...(profile.meal_schedule || {}) } as Record<MealType, string>)
     setEditOpen(true)
   }
 
@@ -88,6 +105,7 @@ export default function ProfilePage() {
         exercise_days_per_week: parseInt(editExerciseDays) || null,
         exercise_description: editExerciseDesc || null,
         health_notes: editHealthNotes || null,
+        meal_schedule: editMealSchedule,
       })
       toast.success("Perfil actualizado")
       setEditOpen(false)
@@ -398,6 +416,21 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 <Label>Tipo de ejercicio</Label>
                 <Input value={editExerciseDesc} onChange={(e) => setEditExerciseDesc(e.target.value)} placeholder="Ej: caminar, pesas" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Horarios de comidas</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(MEAL_SCHEDULE_LABELS) as MealType[]).map((mt) => (
+                  <div key={mt} className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{MEAL_SCHEDULE_LABELS[mt]}</p>
+                    <Input
+                      type="time"
+                      value={editMealSchedule[mt] || ""}
+                      onChange={(e) => setEditMealSchedule((s) => ({ ...s, [mt]: e.target.value }))}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
             <div className="space-y-2">

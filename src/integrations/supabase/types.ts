@@ -22,6 +22,7 @@ export interface Profile {
   exercise_days_per_week: number | null
   exercise_description: string | null
   health_notes: string | null
+  meal_schedule: Record<string, string> | null
   onboarding_completed: boolean
   created_at: string
   updated_at: string

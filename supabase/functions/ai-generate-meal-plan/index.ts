@@ -8,6 +8,8 @@ import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from 
 
 interface RequestBody {
   plan_date: string
+  daily_activities?: string
+  preferences?: string
 }
 
 interface GeneratedMeal {
@@ -66,7 +68,7 @@ Deno.serve(async (req: Request) => {
   try {
     const client = getUserClient(req)
     const user = await getUser(client)
-    const { plan_date } = (await req.json()) as RequestBody
+    const { plan_date, daily_activities, preferences } = (await req.json()) as RequestBody
     if (!plan_date) {
       return new Response(JSON.stringify({ error: "plan_date required" }), {
         status: 400,
@@ -84,13 +86,24 @@ Deno.serve(async (req: Request) => {
 
     const contextPrompt = buildUserContextPrompt(ctx)
 
+    const mealSchedule = (ctx.profile as { meal_schedule?: Record<string, string> } | null)?.meal_schedule
+    const scheduleText = mealSchedule && Object.keys(mealSchedule).length
+      ? `\n\nHORARIOS DE COMIDAS DEL USUARIO:\n${Object.entries(mealSchedule).map(([k, v]) => `- ${k}: ${v}`).join("\n")}\n(Ajusta cada comida al horario — p.ej. comida previa al entrenamiento debe tener carbos)`
+      : ""
+    const activitiesText = daily_activities
+      ? `\n\nACTIVIDADES DEL DIA (el usuario ha descrito lo que hara hoy):\n"${daily_activities}"\n(Adapta el plan: antes de entrenos fuertes incluye carbos, post-entreno proteina, dias sedentarios baja calorias, etc.)`
+      : ""
+    const prefsText = preferences
+      ? `\n\nPREFERENCIAS ESPECIFICAS PARA HOY:\n"${preferences}"`
+      : ""
+
     const text = await callAnthropic({
       model: MODEL,
       system: SYSTEM,
       messages: [
         {
           role: "user",
-          content: `${contextPrompt}\n\nGenera el plan de comidas para el dia ${plan_date}. Respeta el total de calorias y macros diarios.`,
+          content: `${contextPrompt}${scheduleText}${activitiesText}${prefsText}\n\nGenera el plan de comidas para el dia ${plan_date}. Respeta el total de calorias y macros diarios.`,
         },
       ],
       max_tokens: 8192,
