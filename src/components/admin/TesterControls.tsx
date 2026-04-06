@@ -32,7 +32,9 @@ export function TesterControls() {
   const [confirm, setConfirm] = useState<Action | null>(null)
   const [running, setRunning] = useState(false)
 
-  const allowed = isTesterEmail(user?.email) || profile?.role === "admin"
+  // Emergency override: ?admin=1 in URL (so stale PWA caches don't lock you out)
+  const urlOverride = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("admin") === "1"
+  const allowed = isTesterEmail(user?.email) || profile?.role === "admin" || urlOverride
   if (!allowed) return null
 
   const deleteMealPlans = async (uid: string) => {
