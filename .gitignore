@@ -9,6 +9,12 @@ dist-ssr
 *.local
 .env
 
+# Playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 .DS_Store
 .idea
 *.suo

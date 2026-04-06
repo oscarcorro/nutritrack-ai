@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import { useMealPlan } from "@/hooks/use-meal-plan"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
+import { useGenerateMealPlan, useSwapMeal } from "@/hooks/use-ai"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -12,14 +13,32 @@ import { ChevronLeft, ChevronRight, Check, SkipForward, ChevronDown, ChevronUp, 
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 
-function MealCard({ item, onLog }: { item: MealPlanItem; onLog: (item: MealPlanItem) => void }) {
+function MealCard({
+  item,
+  onLog,
+  onSwap,
+}: {
+  item: MealPlanItem
+  onLog: (item: MealPlanItem) => void
+  onSwap: (item: MealPlanItem) => Promise<void>
+}) {
   const [expanded, setExpanded] = useState(false)
   const [logging, setLogging] = useState(false)
+  const [swapping, setSwapping] = useState(false)
 
   const handleLog = async () => {
     setLogging(true)
     await onLog(item)
     setLogging(false)
+  }
+
+  const handleSwap = async () => {
+    setSwapping(true)
+    try {
+      await onSwap(item)
+    } finally {
+      setSwapping(false)
+    }
   }
 
   return (
@@ -62,8 +81,8 @@ function MealCard({ item, onLog }: { item: MealPlanItem; onLog: (item: MealPlanI
           <Button size="sm" onClick={handleLog} disabled={logging} className="flex-1">
             {logging ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-4 w-4 mr-1" /> Comi esto</>}
           </Button>
-          <Button size="sm" variant="outline" className="flex-1" onClick={() => toast.info("Funcion disponible pronto")}>
-            Cambiar
+          <Button size="sm" variant="outline" className="flex-1" onClick={handleSwap} disabled={swapping}>
+            {swapping ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cambiar"}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => toast.info("Comida omitida")}>
             <SkipForward className="h-4 w-4" />
@@ -79,6 +98,26 @@ export default function MealPlanPage() {
   const dateStr = format(date, "yyyy-MM-dd")
   const { data: plan, isLoading } = useMealPlan(dateStr)
   const createFoodLog = useCreateFoodLog()
+  const generatePlan = useGenerateMealPlan()
+  const swapMeal = useSwapMeal()
+
+  const handleGenerate = async () => {
+    try {
+      await generatePlan.mutateAsync(dateStr)
+      toast.success("Plan generado")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al generar plan")
+    }
+  }
+
+  const handleSwap = async (item: MealPlanItem) => {
+    try {
+      await swapMeal.mutateAsync(item.id)
+      toast.success("Comida cambiada")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al cambiar")
+    }
+  }
 
   const isToday = format(new Date(), "yyyy-MM-dd") === dateStr
 
@@ -150,8 +189,8 @@ export default function MealPlanPage() {
         <div className="flex flex-col items-center justify-center py-16 space-y-4">
           <CalendarDays className="h-16 w-16 text-muted-foreground" />
           <p className="text-lg text-muted-foreground text-center">No hay plan para este dia</p>
-          <Button size="lg" onClick={() => toast.info("Generacion de planes con IA disponible pronto")}>
-            Generar plan
+          <Button size="lg" onClick={handleGenerate} disabled={generatePlan.isPending}>
+            {generatePlan.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Generando...</> : "Generar plan con IA"}
           </Button>
         </div>
       ) : (
@@ -159,7 +198,7 @@ export default function MealPlanPage() {
           {/* Meal cards */}
           <div className="space-y-3">
             {plan.items.map((item) => (
-              <MealCard key={item.id} item={item} onLog={handleLogMeal} />
+              <MealCard key={item.id} item={item} onLog={handleLogMeal} onSwap={handleSwap} />
             ))}
           </div>
 

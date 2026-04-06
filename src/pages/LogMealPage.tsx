@@ -1,6 +1,7 @@
 import { useState, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
+import { useAnalyzeFood, type AnalyzedFood } from "@/hooks/use-ai"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,10 +15,9 @@ import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
 import { Camera, Mic, FileText, Loader2, Upload, MicOff } from "lucide-react"
 
 function ManualEntryForm({
-  inputMethod,
-  rawText,
   onSave,
   saving,
+  initial,
 }: {
   inputMethod: LogInputMethod
   rawText: string
@@ -30,12 +30,13 @@ function ManualEntryForm({
     meal_type: MealType
   }) => void
   saving: boolean
+  initial?: AnalyzedFood | null
 }) {
-  const [mealName, setMealName] = useState("")
-  const [calories, setCalories] = useState("")
-  const [protein, setProtein] = useState("")
-  const [carbs, setCarbs] = useState("")
-  const [fat, setFat] = useState("")
+  const [mealName, setMealName] = useState(initial?.meal_name ?? "")
+  const [calories, setCalories] = useState(initial ? String(Math.round(initial.calories)) : "")
+  const [protein, setProtein] = useState(initial ? String(Math.round(initial.protein_g)) : "")
+  const [carbs, setCarbs] = useState(initial ? String(Math.round(initial.carbs_g)) : "")
+  const [fat, setFat] = useState(initial ? String(Math.round(initial.fat_g)) : "")
   const [mealType, setMealType] = useState<MealType>("lunch")
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -105,8 +106,23 @@ function ManualEntryForm({
 export default function LogMealPage() {
   const navigate = useNavigate()
   const createFoodLog = useCreateFoodLog()
+  const analyzeFood = useAnalyzeFood()
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("text")
+  const [aiResult, setAiResult] = useState<AnalyzedFood | null>(null)
+
+  const runAnalyze = async (input: { text?: string; transcript?: string; image_base64?: string; media_type?: string }) => {
+    try {
+      const result = await analyzeFood.mutateAsync(input)
+      setAiResult(result)
+      toast.success("Analizado con IA")
+      return true
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al analizar")
+      setAiResult(null)
+      return false
+    }
+  }
 
   // Photo state
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -179,15 +195,17 @@ export default function LogMealPage() {
     }
   }
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (!videoRef.current) return
     const canvas = document.createElement("canvas")
     canvas.width = videoRef.current.videoWidth
     canvas.height = videoRef.current.videoHeight
     canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0)
-    setPhotoPreview(canvas.toDataURL("image/jpeg"))
+    const dataUrl = canvas.toDataURL("image/jpeg")
+    setPhotoPreview(dataUrl)
     stopCamera()
-    setShowPhotoForm(true)
+    const ok = await runAnalyze({ image_base64: dataUrl, media_type: "image/jpeg" })
+    if (ok) setShowPhotoForm(true)
   }
 
   const stopCamera = () => {
@@ -200,9 +218,11 @@ export default function LogMealPage() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      setPhotoPreview(ev.target?.result as string)
-      setShowPhotoForm(true)
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string
+      setPhotoPreview(dataUrl)
+      const ok = await runAnalyze({ image_base64: dataUrl, media_type: file.type || "image/jpeg" })
+      if (ok) setShowPhotoForm(true)
     }
     reader.readAsDataURL(file)
   }
@@ -234,11 +254,12 @@ export default function LogMealPage() {
     setIsRecording(true)
   }
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     recognitionRef.current?.stop()
     setIsRecording(false)
     if (transcript) {
-      setShowAudioForm(true)
+      const ok = await runAnalyze({ transcript })
+      if (ok) setShowAudioForm(true)
     }
   }
 
@@ -309,9 +330,9 @@ export default function LogMealPage() {
                     <img src={photoPreview} alt="Foto capturada" className="w-full rounded-xl max-h-48 object-cover" />
                   )}
                   <p className="text-sm text-muted-foreground">
-                    La deteccion automatica con IA estara disponible pronto. Por ahora, completa los datos manualmente.
+                    Revisa y ajusta los datos detectados por IA antes de guardar.
                   </p>
-                  <ManualEntryForm inputMethod="photo" rawText="" onSave={handleSave} saving={saving} />
+                  <ManualEntryForm inputMethod="photo" rawText="" onSave={handleSave} saving={saving} initial={aiResult} />
                 </>
               )}
             </CardContent>
@@ -355,9 +376,9 @@ export default function LogMealPage() {
                     <p className="text-base">{transcript}</p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    La deteccion automatica con IA estara disponible pronto. Completa los datos manualmente.
+                    Revisa y ajusta los datos detectados por IA antes de guardar.
                   </p>
-                  <ManualEntryForm inputMethod="audio" rawText={transcript} onSave={handleSave} saving={saving} />
+                  <ManualEntryForm inputMethod="audio" rawText={transcript} onSave={handleSave} saving={saving} initial={aiResult} />
                 </>
               )}
             </CardContent>
@@ -379,15 +400,17 @@ export default function LogMealPage() {
                   <Button
                     size="lg"
                     className="w-full"
-                    onClick={() => {
+                    disabled={analyzeFood.isPending}
+                    onClick={async () => {
                       if (!textInput.trim()) {
                         toast.error("Escribe lo que comiste")
                         return
                       }
-                      setShowTextForm(true)
+                      const ok = await runAnalyze({ text: textInput })
+                      if (ok) setShowTextForm(true)
                     }}
                   >
-                    Continuar
+                    {analyzeFood.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Analizando...</> : "Analizar con IA"}
                   </Button>
                 </>
               ) : (
@@ -396,9 +419,9 @@ export default function LogMealPage() {
                     <p className="text-base">{textInput}</p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    La estimacion automatica con IA estara disponible pronto. Completa los datos manualmente.
+                    Revisa y ajusta los datos estimados por IA antes de guardar.
                   </p>
-                  <ManualEntryForm inputMethod="text" rawText={textInput} onSave={handleSave} saving={saving} />
+                  <ManualEntryForm inputMethod="text" rawText={textInput} onSave={handleSave} saving={saving} initial={aiResult} />
                 </>
               )}
             </CardContent>
