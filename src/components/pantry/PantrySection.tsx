@@ -46,11 +46,14 @@ export function PantrySection() {
     const all: DetectedPantryItem[] = []
     const seen = new Set<string>()
 
+    let done = 0
     setBatchProgress({ done: 0, total: files.length })
     toast.info(`Analizando ${files.length} foto${files.length > 1 ? "s" : ""}...`)
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+    // Process in parallel with a concurrency cap so we don't overwhelm the
+    // edge function / Anthropic with 14 simultaneous requests.
+    const CONCURRENCY = 4
+    const processOne = async (file: File, idx: number) => {
       try {
         const dataUrl = await compressImage(file)
         const result = await analyze.mutateAsync({
@@ -66,11 +69,26 @@ export function PantrySection() {
         }
       } catch (err) {
         toast.error(
-          `Foto ${i + 1}: ${err instanceof Error ? err.message : "Error al analizar"}`
+          `Foto ${idx + 1}: ${err instanceof Error ? err.message : "Error al analizar"}`
         )
+      } finally {
+        done += 1
+        setBatchProgress({ done, total: files.length })
       }
-      setBatchProgress({ done: i + 1, total: files.length })
     }
+
+    // Simple worker-pool: pull next index from a shared counter
+    let next = 0
+    const worker = async () => {
+      while (true) {
+        const i = next++
+        if (i >= files.length) return
+        await processOne(files[i], i)
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker())
+    )
 
     setBatchProgress(null)
 

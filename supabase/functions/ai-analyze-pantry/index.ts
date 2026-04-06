@@ -18,7 +18,7 @@ interface DetectedItem {
   category: string
 }
 
-const MODEL = "claude-sonnet-4-6"
+const MODEL = "claude-haiku-4-5-20251001"
 
 const SYSTEM = `Eres un experto en identificar alimentos en fotos de neveras y despensas.
 
@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
       model: MODEL,
       system: SYSTEM,
       messages: [{ role: "user", content }],
-      max_tokens: 2048,
+      max_tokens: 1024,
       temperature: 0.2,
     })
 
