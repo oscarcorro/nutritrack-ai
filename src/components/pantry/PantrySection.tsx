@@ -27,35 +27,68 @@ export function PantrySection() {
   const [detected, setDetected] = useState<DetectedPantryItem[]>([])
   const [selected, setSelected] = useState<Record<number, boolean>>({})
   const [adding, setAdding] = useState(false)
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
 
   // Manual add
   const [manualOpen, setManualOpen] = useState(false)
   const [manualName, setManualName] = useState("")
   const [manualQty, setManualQty] = useState("")
 
-  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target?.result as string
+  const readAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (ev) => resolve(ev.target?.result as string)
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo"))
+      reader.readAsDataURL(file)
+    })
+
+  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    e.target.value = "" // allow re-selecting the same files
+    if (!files.length) return
+
+    // Dedupe helper (by lowercased name) as we accumulate across multiple photos
+    const all: DetectedPantryItem[] = []
+    const seen = new Set<string>()
+
+    setBatchProgress({ done: 0, total: files.length })
+    toast.info(`Analizando ${files.length} foto${files.length > 1 ? "s" : ""}...`)
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
       try {
-        const result = await analyze.mutateAsync({ image_base64: dataUrl, media_type: file.type || "image/jpeg" })
-        if (!result.items?.length) {
-          toast.info("No se detectaron alimentos en la foto")
-          return
+        const dataUrl = await readAsDataUrl(file)
+        const result = await analyze.mutateAsync({
+          image_base64: dataUrl,
+          media_type: file.type || "image/jpeg",
+        })
+        for (const item of result.items || []) {
+          const key = item.name.trim().toLowerCase()
+          if (key && !seen.has(key)) {
+            seen.add(key)
+            all.push(item)
+          }
         }
-        setDetected(result.items)
-        const sel: Record<number, boolean> = {}
-        result.items.forEach((_, i) => (sel[i] = true))
-        setSelected(sel)
-        setScanOpen(true)
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Error al analizar foto")
+        toast.error(
+          `Foto ${i + 1}: ${err instanceof Error ? err.message : "Error al analizar"}`
+        )
       }
+      setBatchProgress({ done: i + 1, total: files.length })
     }
-    reader.readAsDataURL(file)
-    e.target.value = "" // allow re-selecting the same file
+
+    setBatchProgress(null)
+
+    if (!all.length) {
+      toast.info("No se detectaron alimentos en las fotos")
+      return
+    }
+
+    setDetected(all)
+    const sel: Record<number, boolean> = {}
+    all.forEach((_, i) => (sel[i] = true))
+    setSelected(sel)
+    setScanOpen(true)
   }
 
   const handleConfirmDetected = async () => {
@@ -126,18 +159,20 @@ export function PantrySection() {
             size="sm"
             className="flex-1"
             onClick={() => fileRef.current?.click()}
-            disabled={analyze.isPending}
+            disabled={analyze.isPending || !!batchProgress}
           >
-            {analyze.isPending ? (
+            {batchProgress ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {batchProgress.done}/{batchProgress.total}</>
+            ) : analyze.isPending ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analizando...</>
             ) : (
-              <><Camera className="h-4 w-4 mr-1" /> Escanear foto</>
+              <><Camera className="h-4 w-4 mr-1" /> Escanear fotos</>
             )}
           </Button>
           <Button variant="outline" size="sm" className="flex-1" onClick={() => setManualOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Añadir
           </Button>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
+          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhoto} />
         </div>
 
         {isLoading ? (

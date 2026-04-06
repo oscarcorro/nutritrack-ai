@@ -36,6 +36,7 @@ function suggestChips(text: string): string[] {
 // Narrow type for Web Speech API (avoids `any`)
 interface SpeechRecognitionResultLike {
   0: { transcript: string }
+  isFinal: boolean
 }
 interface SpeechRecognitionEventLike {
   resultIndex: number
@@ -56,7 +57,10 @@ export function DailyContextForm({ onSubmit, generating }: Props) {
   const [text, setText] = useState("")
   const [selectedChips, setSelectedChips] = useState<Record<string, boolean>>({})
   const [listening, setListening] = useState(false)
+  const [interim, setInterim] = useState("")
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  // Text committed before dictation started — dictation appends to this
+  const baseTextRef = useRef("")
 
   const chips = useMemo(() => suggestChips(text), [text])
 
@@ -74,19 +78,42 @@ export function DailyContextForm({ onSubmit, generating }: Props) {
       recognitionRef.current?.stop()
       return
     }
+    // Snapshot current text as the base; dictated finals append to this
+    baseTextRef.current = text
+    setInterim("")
     const rec = new Ctor()
     rec.lang = "es-ES"
     rec.interimResults = true
     rec.continuous = true
     rec.onresult = (e) => {
-      let finalText = ""
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        finalText += e.results[i][0].transcript
+      // Walk ALL results (not just from resultIndex) and split final vs interim.
+      // Finals are committed to baseTextRef; interim is shown as preview only.
+      let finalAdded = ""
+      let interimPreview = ""
+      for (let i = 0; i < e.results.length; i++) {
+        const r = e.results[i]
+        const transcript = r[0].transcript
+        if (r.isFinal) {
+          finalAdded += transcript
+        } else {
+          interimPreview += transcript
+        }
       }
-      setText((prev) => (prev ? prev + " " : "") + finalText)
+      if (finalAdded) {
+        const sep = baseTextRef.current && !baseTextRef.current.endsWith(" ") ? " " : ""
+        baseTextRef.current = baseTextRef.current + sep + finalAdded.trim()
+        setText(baseTextRef.current)
+      }
+      setInterim(interimPreview.trim())
     }
-    rec.onerror = () => setListening(false)
-    rec.onend = () => setListening(false)
+    rec.onerror = () => {
+      setListening(false)
+      setInterim("")
+    }
+    rec.onend = () => {
+      setListening(false)
+      setInterim("")
+    }
     recognitionRef.current = rec
     rec.start()
     setListening(true)
@@ -113,11 +140,17 @@ export function DailyContextForm({ onSubmit, generating }: Props) {
 
         <Textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            baseTextRef.current = e.target.value
+          }}
           placeholder="Ej: Hoy voy a montar en bici de 9 a 12 y al gimnasio a las 19. El resto del dia trabajando en casa."
           rows={4}
           className="text-base"
         />
+        {listening && interim && (
+          <p className="text-sm text-muted-foreground italic">… {interim}</p>
+        )}
 
         <Button
           variant={listening ? "destructive" : "outline"}

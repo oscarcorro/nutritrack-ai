@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useAuth } from "@/contexts/AuthContext"
+import { useProfile } from "@/hooks/use-profile"
 import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/integrations/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,10 +10,11 @@ import { toast } from "sonner"
 import { AlertTriangle, Loader2, Trash2, RotateCcw } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
-const TESTER_EMAIL = "oscarcorrochanolopez@gmail.com"
+const TESTER_EMAILS = ["oscarcorrochanolopez@gmail.com"]
 
-export function isTester(email: string | null | undefined): boolean {
-  return email?.toLowerCase() === TESTER_EMAIL
+export function isTesterEmail(email: string | null | undefined): boolean {
+  const normalized = email?.trim().toLowerCase()
+  return !!normalized && TESTER_EMAILS.includes(normalized)
 }
 
 type Action = {
@@ -24,12 +26,14 @@ type Action = {
 
 export function TesterControls() {
   const { user, signOut } = useAuth()
+  const { data: profile } = useProfile()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [confirm, setConfirm] = useState<Action | null>(null)
   const [running, setRunning] = useState(false)
 
-  if (!isTester(user?.email)) return null
+  const allowed = isTesterEmail(user?.email) || profile?.role === "admin"
+  if (!allowed) return null
 
   const deleteMealPlans = async (uid: string) => {
     const { error } = await supabase.from("meal_plans").delete().eq("user_id", uid)
