@@ -51,30 +51,53 @@ export function PantrySection() {
     toast.info(`Analizando ${files.length} foto${files.length > 1 ? "s" : ""}...`)
 
     // Process in parallel with a concurrency cap so we don't overwhelm the
-    // edge function / Anthropic with 14 simultaneous requests.
-    const CONCURRENCY = 4
+    // edge function / Anthropic with 14 simultaneous requests. Retry each
+    // photo up to 2 extra times on failure (rate limits / cold starts).
+    const CONCURRENCY = 2
+    const MAX_ATTEMPTS = 3
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
     const processOne = async (file: File, idx: number) => {
+      let dataUrl: string
       try {
-        const dataUrl = await compressImage(file)
-        const result = await analyze.mutateAsync({
-          image_base64: dataUrl,
-          media_type: "image/jpeg",
-        })
-        for (const item of result.items || []) {
-          const key = item.name.trim().toLowerCase()
-          if (key && !seen.has(key)) {
-            seen.add(key)
-            all.push(item)
-          }
-        }
+        dataUrl = await compressImage(file)
       } catch (err) {
-        toast.error(
-          `Foto ${idx + 1}: ${err instanceof Error ? err.message : "Error al analizar"}`
-        )
-      } finally {
+        toast.error(`Foto ${idx + 1}: ${err instanceof Error ? err.message : "Error al leer"}`)
         done += 1
         setBatchProgress({ done, total: files.length })
+        return
       }
+
+      let lastErr: unknown = null
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const result = await analyze.mutateAsync({
+            image_base64: dataUrl,
+            media_type: "image/jpeg",
+          })
+          for (const item of result.items || []) {
+            const key = item.name.trim().toLowerCase()
+            if (key && !seen.has(key)) {
+              seen.add(key)
+              all.push(item)
+            }
+          }
+          lastErr = null
+          break
+        } catch (err) {
+          lastErr = err
+          if (attempt < MAX_ATTEMPTS) {
+            await sleep(500 * attempt) // 0.5s, 1s backoff
+          }
+        }
+      }
+      if (lastErr) {
+        toast.error(
+          `Foto ${idx + 1}: ${lastErr instanceof Error ? lastErr.message : "Error al analizar"}`
+        )
+      }
+      done += 1
+      setBatchProgress({ done, total: files.length })
     }
 
     // Simple worker-pool: pull next index from a shared counter
