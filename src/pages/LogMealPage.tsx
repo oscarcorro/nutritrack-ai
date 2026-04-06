@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { MEAL_TYPE_LABELS } from "@/lib/nutrition"
 import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
 import { Camera, Mic, FileText, Loader2, Upload, MicOff } from "lucide-react"
+import { compressImage, compressDataUrl } from "@/lib/image"
 
 function ManualEntryForm({
   onSave,
@@ -204,7 +205,8 @@ export default function LogMealPage() {
     const dataUrl = canvas.toDataURL("image/jpeg")
     setPhotoPreview(dataUrl)
     stopCamera()
-    const ok = await runAnalyze({ image_base64: dataUrl, media_type: "image/jpeg" })
+    const compressed = await compressDataUrl(dataUrl)
+    const ok = await runAnalyze({ image_base64: compressed, media_type: "image/jpeg" })
     if (ok) setShowPhotoForm(true)
   }
 
@@ -214,17 +216,17 @@ export default function LogMealPage() {
     setCameraActive(false)
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target?.result as string
+    try {
+      const dataUrl = await compressImage(file)
       setPhotoPreview(dataUrl)
-      const ok = await runAnalyze({ image_base64: dataUrl, media_type: file.type || "image/jpeg" })
+      const ok = await runAnalyze({ image_base64: dataUrl, media_type: "image/jpeg" })
       if (ok) setShowPhotoForm(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al leer foto")
     }
-    reader.readAsDataURL(file)
   }
 
   // Audio functions

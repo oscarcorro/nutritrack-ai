@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
 import { Camera, Plus, X, Loader2, Refrigerator } from "lucide-react"
+import { compressImage } from "@/lib/image"
 import {
   usePantry,
   useCreatePantryItem,
@@ -34,13 +35,7 @@ export function PantrySection() {
   const [manualName, setManualName] = useState("")
   const [manualQty, setManualQty] = useState("")
 
-  const readAsDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (ev) => resolve(ev.target?.result as string)
-      reader.onerror = () => reject(new Error("No se pudo leer el archivo"))
-      reader.readAsDataURL(file)
-    })
+  // eslint: import is used via compressImage below
 
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -57,10 +52,10 @@ export function PantrySection() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       try {
-        const dataUrl = await readAsDataUrl(file)
+        const dataUrl = await compressImage(file)
         const result = await analyze.mutateAsync({
           image_base64: dataUrl,
-          media_type: file.type || "image/jpeg",
+          media_type: "image/jpeg",
         })
         for (const item of result.items || []) {
           const key = item.name.trim().toLowerCase()
