@@ -41,6 +41,18 @@ export function useGenerateMealPlan() {
   })
 }
 
+export function useSuggestMeal() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { plan_date: string; meal_type: string; notes?: string }) =>
+      invoke<{ plan_id: string; item: unknown }>('ai-suggest-meal', input),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['meal-plan', user?.id, vars.plan_date] })
+    },
+  })
+}
+
 export function useSwapMeal() {
   const { user } = useAuth()
   const queryClient = useQueryClient()

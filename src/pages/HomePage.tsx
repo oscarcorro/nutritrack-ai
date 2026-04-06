@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import { Plus, Scale, UtensilsCrossed } from "lucide-react"
+import { AppTour } from "@/components/onboarding/AppTour"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -95,6 +96,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-5">
+      <AppTour />
       {/* Greeting */}
       <div>
         <h2 className="text-2xl font-bold">Hola, {profile?.display_name?.split(" ")[0] || "amigo"}</h2>

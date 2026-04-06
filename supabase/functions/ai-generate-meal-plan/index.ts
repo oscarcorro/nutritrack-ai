@@ -86,6 +86,60 @@ Deno.serve(async (req: Request) => {
 
     const contextPrompt = buildUserContextPrompt(ctx)
 
+    // Load food already logged for this date, so the plan accounts for
+    // meals the user already ate. Only the remaining meal slots get
+    // AI-generated, using the remaining macro budget.
+    const { data: loggedToday } = await client
+      .from("food_log")
+      .select("meal_type, meal_name, calories, protein_g, carbs_g, fat_g, fiber_g")
+      .eq("user_id", user.id)
+      .gte("logged_at", `${plan_date}T00:00:00`)
+      .lte("logged_at", `${plan_date}T23:59:59`)
+
+    const logged = (loggedToday ?? []) as Array<{
+      meal_type: string | null
+      meal_name: string
+      calories: number | null
+      protein_g: number | null
+      carbs_g: number | null
+      fat_g: number | null
+      fiber_g: number | null
+    }>
+
+    const consumed = logged.reduce(
+      (acc, l) => ({
+        calories: acc.calories + (l.calories || 0),
+        protein: acc.protein + (l.protein_g || 0),
+        carbs: acc.carbs + (l.carbs_g || 0),
+        fat: acc.fat + (l.fat_g || 0),
+        fiber: acc.fiber + (l.fiber_g || 0),
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+    )
+    const goal = ctx.goal as Record<string, number>
+    const remaining = {
+      calories: Math.max(0, (goal.daily_calories_target || 0) - consumed.calories),
+      protein: Math.max(0, (goal.protein_g || 0) - consumed.protein),
+      carbs: Math.max(0, (goal.carbs_g || 0) - consumed.carbs),
+      fat: Math.max(0, (goal.fat_g || 0) - consumed.fat),
+      fiber: Math.max(0, (goal.fiber_g || 0) - consumed.fiber),
+    }
+    const loggedTypes = new Set(logged.map((l) => l.meal_type).filter(Boolean) as string[])
+    const loggedText = logged.length
+      ? `\n\nCOMIDAS YA REGISTRADAS HOY (NO las repitas, NO generes nada para estos meal_type):
+${logged
+  .map(
+    (l) =>
+      `- ${l.meal_type ?? "?"}: ${l.meal_name} — ${l.calories ?? 0} kcal, P ${l.protein_g ?? 0}g, C ${l.carbs_g ?? 0}g, G ${l.fat_g ?? 0}g`
+  )
+  .join("\n")}
+
+CONSUMIDO: ${consumed.calories} kcal, P ${consumed.protein}g, C ${consumed.carbs}g, G ${consumed.fat}g
+MACROS RESTANTES DEL DIA: ${remaining.calories} kcal, P ${remaining.protein}g, C ${remaining.carbs}g, G ${remaining.fat}g, F ${remaining.fiber}g
+
+IMPORTANTE: Genera SOLO las comidas restantes (meal_type NO incluidos arriba). El total de lo que generes debe cuadrar con los MACROS RESTANTES, no con el total del dia.`
+      : ""
+
     const mealSchedule = (ctx.profile as { meal_schedule?: Record<string, string> } | null)?.meal_schedule
     const scheduleText = mealSchedule && Object.keys(mealSchedule).length
       ? `\n\nHORARIOS DE COMIDAS DEL USUARIO:\n${Object.entries(mealSchedule).map(([k, v]) => `- ${k}: ${v}`).join("\n")}\n(Ajusta cada comida al horario — p.ej. comida previa al entrenamiento debe tener carbos)`
@@ -103,7 +157,7 @@ Deno.serve(async (req: Request) => {
       messages: [
         {
           role: "user",
-          content: `${contextPrompt}${scheduleText}${activitiesText}${prefsText}\n\nGenera el plan de comidas para el dia ${plan_date}. Respeta el total de calorias y macros diarios.`,
+          content: `${contextPrompt}${scheduleText}${activitiesText}${prefsText}${loggedText}\n\nGenera el plan de comidas para el dia ${plan_date}. ${logged.length ? "Respeta los MACROS RESTANTES indicados arriba." : "Respeta el total de calorias y macros diarios."}`,
         },
       ],
       max_tokens: 8192,
@@ -113,6 +167,10 @@ Deno.serve(async (req: Request) => {
 
     const parsed = extractJSON<GeneratedPlan>(text)
     if (!parsed?.meals?.length) throw new Error("Plan invalido generado por IA")
+
+    // Belt-and-braces: drop any meal the AI produced for an already-logged slot.
+    parsed.meals = parsed.meals.filter((m) => !loggedTypes.has(m.meal_type))
+    if (!parsed.meals.length) throw new Error("Ya tienes comidas registradas para todo el dia")
 
     // Compute totals
     const totals = parsed.meals.reduce(

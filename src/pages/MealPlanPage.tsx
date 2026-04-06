@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react"
 import { useMealPlan } from "@/hooks/use-meal-plan"
-import { useCreateFoodLog } from "@/hooks/use-food-log"
-import { useSwapMeal } from "@/hooks/use-ai"
+import { useCreateFoodLog, useFoodLog } from "@/hooks/use-food-log"
+import { useSwapMeal, useSuggestMeal } from "@/hooks/use-ai"
+import { Input } from "@/components/ui/input"
 import { useMealPlanGeneration } from "@/contexts/MealPlanGenerationContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles } from "lucide-react"
+import type { MealType } from "@/integrations/supabase/types"
 import { format, addDays, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { DailyContextForm } from "@/components/plan/DailyContextForm"
@@ -119,8 +121,12 @@ export default function MealPlanPage() {
   const [date, setDate] = useState(new Date())
   const dateStr = format(date, "yyyy-MM-dd")
   const { data: plan, isLoading } = useMealPlan(dateStr)
+  const { data: todayLog } = useFoodLog(`${dateStr}T00:00:00`, `${dateStr}T23:59:59`)
   const createFoodLog = useCreateFoodLog()
   const swapMeal = useSwapMeal()
+  const suggestMeal = useSuggestMeal()
+  const [suggestingType, setSuggestingType] = useState<MealType | null>(null)
+  const [suggestNotes, setSuggestNotes] = useState("")
   const { start: startGenerate, isGenerating } = useMealPlanGeneration()
   const generating = isGenerating(dateStr)
 
@@ -142,6 +148,28 @@ export default function MealPlanPage() {
   }
 
   const isToday = format(new Date(), "yyyy-MM-dd") === dateStr
+
+  const ALL_MEAL_TYPES: MealType[] = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"]
+  const usedMealTypes = new Set<string>([
+    ...(plan?.items.map((i) => i.meal_type) ?? []),
+    ...((todayLog ?? []).map((l) => l.meal_type).filter(Boolean) as string[]),
+  ])
+  const emptySlots = ALL_MEAL_TYPES.filter((t) => !usedMealTypes.has(t))
+
+  const handleSuggest = async (mealType: MealType) => {
+    try {
+      await suggestMeal.mutateAsync({
+        plan_date: dateStr,
+        meal_type: mealType,
+        notes: suggestNotes || undefined,
+      })
+      setSuggestingType(null)
+      setSuggestNotes("")
+      toast.success("Sugerencia añadida al plan")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al sugerir")
+    }
+  }
 
   const dailyTotals = useMemo(() => {
     if (!plan?.items) return { calories: 0, protein: 0, carbs: 0, fat: 0 }
@@ -209,6 +237,17 @@ export default function MealPlanPage() {
         </div>
       ) : !plan ? (
         <div className="space-y-3">
+          {todayLog && todayLog.length > 0 && (
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">Ya registrado hoy</p>
+                {todayLog.map((l) => (
+                  <p key={l.id} className="text-sm">• {l.meal_name} — {l.calories ?? 0} kcal</p>
+                ))}
+                <p className="text-xs text-muted-foreground mt-2">Al generar el plan se tendra en cuenta esto.</p>
+              </CardContent>
+            </Card>
+          )}
           <DailyContextForm onSubmit={handleGenerateWithContext} generating={generating} />
           {generating && (
             <p className="text-xs text-muted-foreground text-center">Puedes cambiar de pestaña, seguiremos generando.</p>
@@ -216,12 +255,92 @@ export default function MealPlanPage() {
         </div>
       ) : (
         <>
+          {/* Already-logged meals for today */}
+          {todayLog && todayLog.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Ya registrado hoy</p>
+              {todayLog.map((l) => (
+                <Card key={l.id} className="bg-green-50 border-green-200">
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-1">
+                        <Check className="h-4 w-4 text-green-700" />
+                        {l.meal_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {l.calories ?? 0} kcal · P {l.protein_g ?? 0}g · C {l.carbs_g ?? 0}g · G {l.fat_g ?? 0}g
+                      </p>
+                    </div>
+                    {l.meal_type && (
+                      <Badge variant="outline" className="text-xs">{MEAL_TYPE_LABELS[l.meal_type]}</Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
           {/* Meal cards */}
           <div className="space-y-3">
             {plan.items.map((item) => (
               <MealCard key={item.id} item={item} onLog={handleLogMeal} onSwap={handleSwap} />
             ))}
           </div>
+
+          {/* Suggest missing meals */}
+          {emptySlots.length > 0 && (
+            <Card className="border-dashed">
+              <CardContent className="p-4 space-y-3">
+                <p className="text-sm font-semibold flex items-center gap-1">
+                  <Sparkles className="h-4 w-4 text-primary" /> Pedir sugerencia
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Pide a la IA que te proponga una comida para un hueco del dia. Tendra en cuenta lo que ya has comido.
+                </p>
+                {suggestingType ? (
+                  <div className="space-y-2">
+                    <p className="text-sm">Sugiriendo <strong>{MEAL_TYPE_LABELS[suggestingType]}</strong></p>
+                    <Input
+                      placeholder="Opcional: 'algo ligero y rapido', 'con pollo'..."
+                      value={suggestNotes}
+                      onChange={(e) => setSuggestNotes(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleSuggest(suggestingType)}
+                        disabled={suggestMeal.isPending}
+                        className="flex-1"
+                      >
+                        {suggestMeal.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sugerir"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => { setSuggestingType(null); setSuggestNotes("") }}
+                        disabled={suggestMeal.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {emptySlots.map((t) => (
+                      <Button
+                        key={t}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSuggestingType(t)}
+                      >
+                        + {MEAL_TYPE_LABELS[t]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Daily totals */}
           <Card className="bg-accent">
