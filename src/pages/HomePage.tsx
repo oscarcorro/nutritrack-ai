@@ -77,6 +77,8 @@ export default function HomePage() {
     return mealPlan.items.find((item) => !loggedMealTypes.has(item.meal_type)) || null
   }, [mealPlan, foodLogs])
 
+  const [editingLog, setEditingLog] = useState<FoodLog | null>(null)
+
   const isLoading = profileLoading || goalLoading || logsLoading
 
   if (isLoading) {
@@ -95,7 +97,6 @@ export default function HomePage() {
   }
 
   const dateStr = format(new Date(), "EEEE, d 'de' MMMM", { locale: es })
-  const [editingLog, setEditingLog] = useState<FoodLog | null>(null)
 
   return (
     <div className="space-y-5">
