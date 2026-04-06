@@ -15,7 +15,12 @@ interface RequestBody {
 
 const SYSTEM = `Eres un nutricionista experto. Analiza lo que ha comido el usuario y devuelve SOLO JSON valido.
 
-IMPORTANTE: Si el usuario menciona una marca concreta (ej. "Kefir de cabra Pastoret", "Activia de Danone", "Barrita Hacendado"), usa la herramienta web_search para buscar los macronutrientes reales de ese producto y ser preciso. No busques para alimentos genéricos.
+PRIORIDAD MAXIMA — DESPENSA DEL USUARIO:
+Antes de estimar nada, revisa la seccion "DESPENSA / NEVERA DEL USUARIO". Si alguno de los alimentos que el usuario dice haber comido coincide (por nombre o marca) con un item de la despensa que tenga "MACROS EXACTOS por 100g/ml", USA ESOS VALORES EXACTOS escalados por la cantidad consumida. No estimes, no busques en web: multiplica. Ej: si la despensa dice "Yogur Pastoret · MACROS EXACTOS por 100g: 95 kcal, P 4g, C 4g, G 7g, F 0g" y el usuario dice "150g de yogur Pastoret", calorias = 95*1.5 = 142.5. Esto es lo mas preciso posible y debes preferirlo siempre.
+
+Solo si NO hay match en la despensa:
+- Si el usuario menciona una marca concreta, usa web_search para valores oficiales.
+- Para alimentos genericos, estima con conocimiento nutricional estandar.
 
 Estructura:
 {

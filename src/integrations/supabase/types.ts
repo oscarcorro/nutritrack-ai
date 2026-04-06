@@ -149,10 +149,20 @@ export interface PantryItem {
   id: string
   user_id: string
   name: string
+  brand: string | null
   quantity_estimate: string | null
   category: string | null
   expires_at: string | null
   source: string | null
+  // Nutrition per 100g (or per 100ml for liquids) — used by ai-analyze-food
+  // so when the user logs "150g of this product" we get precise values.
+  calories_per_100g: number | null
+  protein_g_per_100g: number | null
+  carbs_g_per_100g: number | null
+  fat_g_per_100g: number | null
+  fiber_g_per_100g: number | null
+  serving_unit: string | null // e.g. 'g', 'ml', 'unit'
+  notes: string | null
   created_at: string
 }
 

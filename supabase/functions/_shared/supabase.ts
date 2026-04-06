@@ -51,7 +51,7 @@ export async function loadUserContext(
       .limit(3),
     client
       .from("pantry_items")
-      .select("name, quantity_estimate, category")
+      .select("name, brand, quantity_estimate, category, calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, fiber_g_per_100g, serving_unit")
       .eq("user_id", userId),
   ])
 
@@ -76,7 +76,17 @@ export function buildUserContextPrompt(ctx: UserContext): string {
     .map((f) => f.food_name)
   const cuisines = ctx.cuisinePrefs.filter((c) => c.is_preferred).map((c) => c.cuisine_name)
   const pantry = ctx.pantry
-    .map((p) => `- ${p.name}${p.quantity_estimate ? ` (${p.quantity_estimate})` : ""}${p.category ? ` [${p.category}]` : ""}`)
+    .map((p) => {
+      const brand = p.brand ? ` (${p.brand})` : ""
+      const qty = p.quantity_estimate ? ` — ${p.quantity_estimate}` : ""
+      const cat = p.category ? ` [${p.category}]` : ""
+      const unit = (p.serving_unit as string) || "g"
+      const hasMacros = p.calories_per_100g != null
+      const macros = hasMacros
+        ? ` · MACROS EXACTOS por 100${unit}: ${p.calories_per_100g} kcal, P ${p.protein_g_per_100g ?? 0}g, C ${p.carbs_g_per_100g ?? 0}g, G ${p.fat_g_per_100g ?? 0}g, F ${p.fiber_g_per_100g ?? 0}g`
+        : ""
+      return `- ${p.name}${brand}${qty}${cat}${macros}`
+    })
     .join("\n")
   const recent = ctx.recentPlans
     .map((pl) => {

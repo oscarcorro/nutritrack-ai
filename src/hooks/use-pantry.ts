@@ -41,6 +41,26 @@ export function useCreatePantryItem() {
   })
 }
 
+export function useUpdatePantryItem() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<PantryItem> }) => {
+      const { data, error } = await supabase
+        .from('pantry_items')
+        .update(updates as never)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as unknown as PantryItem
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pantry', user?.id] })
+    },
+  })
+}
+
 export function useDeletePantryItem() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -51,6 +71,37 @@ export function useDeletePantryItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pantry', user?.id] })
+    },
+  })
+}
+
+export interface NutritionLabelResult {
+  name: string
+  brand: string | null
+  calories_per_100g: number | null
+  protein_g_per_100g: number | null
+  carbs_g_per_100g: number | null
+  fat_g_per_100g: number | null
+  fiber_g_per_100g: number | null
+  serving_unit: 'g' | 'ml' | null
+}
+
+export function useAnalyzeNutritionLabel() {
+  return useMutation({
+    mutationFn: async (input: { image_base64: string; media_type?: string; product_hint?: string }) => {
+      const { data, error } = await supabase.functions.invoke('ai-analyze-nutrition-label', { body: input })
+      if (error) {
+        const ctx = (error as unknown as { context?: Response }).context
+        if (ctx && typeof ctx.json === 'function') {
+          try {
+            const body = (await ctx.json()) as { error?: string }
+            if (body?.error) throw new Error(body.error)
+          } catch { /* ignore */ }
+        }
+        throw error
+      }
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error)
+      return data as NutritionLabelResult
     },
   })
 }

@@ -3,56 +3,181 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { Camera, Plus, X, Loader2, Refrigerator } from "lucide-react"
+import { Camera, Plus, Trash2, Loader2, Refrigerator, Pencil, ScanLine, CheckCircle2 } from "lucide-react"
 import { compressImage } from "@/lib/image"
 import {
   usePantry,
   useCreatePantryItem,
+  useUpdatePantryItem,
   useDeletePantryItem,
   useAnalyzePantryPhoto,
+  useAnalyzeNutritionLabel,
   type DetectedPantryItem,
 } from "@/hooks/use-pantry"
+import type { PantryItem } from "@/integrations/supabase/types"
+
+type EditState = {
+  id: string | null // null = new item
+  name: string
+  brand: string
+  quantity_estimate: string
+  serving_unit: string
+  calories_per_100g: string
+  protein_g_per_100g: string
+  carbs_g_per_100g: string
+  fat_g_per_100g: string
+  fiber_g_per_100g: string
+}
+
+const EMPTY_EDIT: EditState = {
+  id: null,
+  name: "",
+  brand: "",
+  quantity_estimate: "",
+  serving_unit: "g",
+  calories_per_100g: "",
+  protein_g_per_100g: "",
+  carbs_g_per_100g: "",
+  fat_g_per_100g: "",
+  fiber_g_per_100g: "",
+}
+
+function hasNutrition(item: PantryItem): boolean {
+  return item.calories_per_100g != null
+}
 
 export function PantrySection() {
   const { data: items, isLoading } = usePantry()
   const createItem = useCreatePantryItem()
+  const updateItem = useUpdatePantryItem()
   const deleteItem = useDeletePantryItem()
-  const analyze = useAnalyzePantryPhoto()
+  const analyzePantry = useAnalyzePantryPhoto()
+  const analyzeLabel = useAnalyzeNutritionLabel()
 
-  const fileRef = useRef<HTMLInputElement>(null)
+  const bulkFileRef = useRef<HTMLInputElement>(null)
+  const labelFileRef = useRef<HTMLInputElement>(null)
+
+  // Bulk scan state
   const [scanOpen, setScanOpen] = useState(false)
   const [detected, setDetected] = useState<DetectedPantryItem[]>([])
   const [selected, setSelected] = useState<Record<number, boolean>>({})
   const [adding, setAdding] = useState(false)
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
 
-  // Manual add
-  const [manualOpen, setManualOpen] = useState(false)
-  const [manualName, setManualName] = useState("")
-  const [manualQty, setManualQty] = useState("")
+  // Edit/create dialog
+  const [editOpen, setEditOpen] = useState(false)
+  const [edit, setEdit] = useState<EditState>(EMPTY_EDIT)
+  const [saving, setSaving] = useState(false)
 
-  // eslint: import is used via compressImage below
+  const openNew = () => {
+    setEdit(EMPTY_EDIT)
+    setEditOpen(true)
+  }
 
-  const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const openEdit = (item: PantryItem) => {
+    setEdit({
+      id: item.id,
+      name: item.name,
+      brand: item.brand ?? "",
+      quantity_estimate: item.quantity_estimate ?? "",
+      serving_unit: item.serving_unit ?? "g",
+      calories_per_100g: item.calories_per_100g?.toString() ?? "",
+      protein_g_per_100g: item.protein_g_per_100g?.toString() ?? "",
+      carbs_g_per_100g: item.carbs_g_per_100g?.toString() ?? "",
+      fat_g_per_100g: item.fat_g_per_100g?.toString() ?? "",
+      fiber_g_per_100g: item.fiber_g_per_100g?.toString() ?? "",
+    })
+    setEditOpen(true)
+  }
+
+  const parseNumOrNull = (s: string) => {
+    const n = parseFloat(s.replace(",", "."))
+    return Number.isFinite(n) ? n : null
+  }
+
+  const handleSaveEdit = async () => {
+    if (!edit.name.trim()) {
+      toast.error("Indica el nombre")
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = {
+        name: edit.name.trim(),
+        brand: edit.brand.trim() || null,
+        quantity_estimate: edit.quantity_estimate.trim() || null,
+        serving_unit: edit.serving_unit || null,
+        calories_per_100g: parseNumOrNull(edit.calories_per_100g),
+        protein_g_per_100g: parseNumOrNull(edit.protein_g_per_100g),
+        carbs_g_per_100g: parseNumOrNull(edit.carbs_g_per_100g),
+        fat_g_per_100g: parseNumOrNull(edit.fat_g_per_100g),
+        fiber_g_per_100g: parseNumOrNull(edit.fiber_g_per_100g),
+      }
+      if (edit.id) {
+        await updateItem.mutateAsync({ id: edit.id, updates: payload })
+        toast.success("Actualizado")
+      } else {
+        await createItem.mutateAsync({
+          ...payload,
+          category: null,
+          expires_at: null,
+          source: "manual",
+          notes: null,
+        })
+        toast.success("Añadido a la despensa")
+      }
+      setEditOpen(false)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al guardar")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Scan nutrition label — fills the edit form with results
+  const handleScanLabel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    try {
+      const dataUrl = await compressImage(file)
+      const result = await analyzeLabel.mutateAsync({
+        image_base64: dataUrl,
+        media_type: "image/jpeg",
+        product_hint: edit.name || undefined,
+      })
+      setEdit((s) => ({
+        ...s,
+        name: s.name || result.name || "",
+        brand: s.brand || result.brand || "",
+        serving_unit: result.serving_unit || s.serving_unit,
+        calories_per_100g: result.calories_per_100g?.toString() ?? s.calories_per_100g,
+        protein_g_per_100g: result.protein_g_per_100g?.toString() ?? s.protein_g_per_100g,
+        carbs_g_per_100g: result.carbs_g_per_100g?.toString() ?? s.carbs_g_per_100g,
+        fat_g_per_100g: result.fat_g_per_100g?.toString() ?? s.fat_g_per_100g,
+        fiber_g_per_100g: result.fiber_g_per_100g?.toString() ?? s.fiber_g_per_100g,
+      }))
+      toast.success("Etiqueta leida")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al leer etiqueta")
+    }
+  }
+
+  // Bulk scan of fridge/pantry photos
+  const handleBulkPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    e.target.value = "" // allow re-selecting the same files
+    e.target.value = ""
     if (!files.length) return
 
-    // Dedupe helper (by lowercased name) as we accumulate across multiple photos
     const all: DetectedPantryItem[] = []
     const seen = new Set<string>()
-
     let done = 0
     setBatchProgress({ done: 0, total: files.length })
     toast.info(`Analizando ${files.length} foto${files.length > 1 ? "s" : ""}...`)
 
-    // Process in parallel with a concurrency cap so we don't overwhelm the
-    // edge function / Anthropic with 14 simultaneous requests. Retry each
-    // photo up to 2 extra times on failure (rate limits / cold starts).
     const CONCURRENCY = 2
     const MAX_ATTEMPTS = 3
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -62,16 +187,15 @@ export function PantrySection() {
       try {
         dataUrl = await compressImage(file)
       } catch (err) {
-        toast.error(`Foto ${idx + 1}: ${err instanceof Error ? err.message : "Error al leer"}`)
+        toast.error(`Foto ${idx + 1}: ${err instanceof Error ? err.message : "Error"}`)
         done += 1
         setBatchProgress({ done, total: files.length })
         return
       }
-
       let lastErr: unknown = null
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
-          const result = await analyze.mutateAsync({
+          const result = await analyzePantry.mutateAsync({
             image_base64: dataUrl,
             media_type: "image/jpeg",
           })
@@ -86,21 +210,18 @@ export function PantrySection() {
           break
         } catch (err) {
           lastErr = err
-          if (attempt < MAX_ATTEMPTS) {
-            await sleep(500 * attempt) // 0.5s, 1s backoff
-          }
+          if (attempt < MAX_ATTEMPTS) await sleep(500 * attempt)
         }
       }
       if (lastErr) {
         toast.error(
-          `Foto ${idx + 1}: ${lastErr instanceof Error ? lastErr.message : "Error al analizar"}`
+          `Foto ${idx + 1}: ${lastErr instanceof Error ? lastErr.message : "Error"}`
         )
       }
       done += 1
       setBatchProgress({ done, total: files.length })
     }
 
-    // Simple worker-pool: pull next index from a shared counter
     let next = 0
     const worker = async () => {
       while (true) {
@@ -116,7 +237,7 @@ export function PantrySection() {
     setBatchProgress(null)
 
     if (!all.length) {
-      toast.info("No se detectaron alimentos en las fotos")
+      toast.info("No se detectaron alimentos")
       return
     }
 
@@ -134,13 +255,21 @@ export function PantrySection() {
       for (const item of toAdd) {
         await createItem.mutateAsync({
           name: item.name,
+          brand: null,
           quantity_estimate: item.quantity_estimate || null,
           category: item.category || null,
           expires_at: null,
           source: "photo",
+          calories_per_100g: null,
+          protein_g_per_100g: null,
+          carbs_g_per_100g: null,
+          fat_g_per_100g: null,
+          fiber_g_per_100g: null,
+          serving_unit: null,
+          notes: null,
         })
       }
-      toast.success(`${toAdd.length} alimentos añadidos`)
+      toast.success(`${toAdd.length} alimentos añadidos. Ábrelos para añadir macros exactos.`)
       setScanOpen(false)
       setDetected([])
       setSelected({})
@@ -148,28 +277,6 @@ export function PantrySection() {
       toast.error("Error al guardar")
     } finally {
       setAdding(false)
-    }
-  }
-
-  const handleAddManual = async () => {
-    if (!manualName.trim()) {
-      toast.error("Indica el nombre")
-      return
-    }
-    try {
-      await createItem.mutateAsync({
-        name: manualName,
-        quantity_estimate: manualQty || null,
-        category: null,
-        expires_at: null,
-        source: "manual",
-      })
-      toast.success("Añadido a la despensa")
-      setManualName("")
-      setManualQty("")
-      setManualOpen(false)
-    } catch {
-      toast.error("Error al guardar")
     }
   }
 
@@ -194,47 +301,86 @@ export function PantrySection() {
             variant="outline"
             size="sm"
             className="flex-1"
-            onClick={() => fileRef.current?.click()}
-            disabled={analyze.isPending || !!batchProgress}
+            onClick={() => bulkFileRef.current?.click()}
+            disabled={analyzePantry.isPending || !!batchProgress}
           >
             {batchProgress ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {batchProgress.done}/{batchProgress.total}</>
-            ) : analyze.isPending ? (
-              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analizando...</>
             ) : (
               <><Camera className="h-4 w-4 mr-1" /> Escanear fotos</>
             )}
           </Button>
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => setManualOpen(true)}>
+          <Button variant="outline" size="sm" className="flex-1" onClick={openNew}>
             <Plus className="h-4 w-4 mr-1" /> Añadir
           </Button>
-          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhoto} />
+          <input
+            ref={bulkFileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleBulkPhoto}
+          />
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          Toca un alimento para añadir sus macros por 100g (desde foto de la etiqueta o a mano). Asi el contador de calorias es preciso cuando lo comas.
+        </p>
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Cargando...</p>
         ) : items && items.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="divide-y rounded-lg border">
             {items.map((item) => (
-              <Badge key={item.id} variant="secondary" className="gap-1 py-1.5 px-3">
-                <span>
-                  {item.name}
-                  {item.quantity_estimate && <span className="text-muted-foreground"> · {item.quantity_estimate}</span>}
-                </span>
-                <button onClick={() => handleDelete(item.id)} aria-label="Eliminar">
-                  <X className="h-3 w-3" />
+              <div key={item.id} className="flex items-center gap-2 p-3">
+                <button
+                  onClick={() => openEdit(item)}
+                  className="flex-1 text-left min-w-0"
+                >
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium truncate">
+                      {item.name}
+                      {item.brand && <span className="text-muted-foreground font-normal"> · {item.brand}</span>}
+                    </p>
+                    {hasNutrition(item) && (
+                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" aria-label="Macros definidas" />
+                    )}
+                  </div>
+                  {hasNutrition(item) ? (
+                    <p className="text-xs text-muted-foreground">
+                      {item.calories_per_100g} kcal · P {item.protein_g_per_100g ?? 0}g · C {item.carbs_g_per_100g ?? 0}g · G {item.fat_g_per_100g ?? 0}g / 100{item.serving_unit || "g"}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-700">Sin macros — toca para añadir</p>
+                  )}
                 </button>
-              </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openEdit(item)}
+                  aria-label="Editar"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDelete(item.id)}
+                  aria-label="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             ))}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Aun no hay alimentos. Escanea tu nevera o despensa para que los planes usen lo que tienes.
+            Aun no hay alimentos. Escanea tu despensa o añade uno para que los planes y el registro sean mas precisos.
           </p>
         )}
       </CardContent>
 
-      {/* Detected items dialog */}
+      {/* Bulk detected items dialog */}
       <Dialog open={scanOpen} onOpenChange={setScanOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -265,25 +411,129 @@ export function PantrySection() {
         </DialogContent>
       </Dialog>
 
-      {/* Manual add dialog */}
-      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
-        <DialogContent>
+      {/* Create / edit item dialog with nutrition */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Añadir alimento</DialogTitle>
+            <DialogTitle>{edit.id ? "Editar alimento" : "Añadir alimento"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nombre</Label>
-              <Input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Ej: Kefir Pastoret" />
+          <div className="space-y-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => labelFileRef.current?.click()}
+              disabled={analyzeLabel.isPending}
+            >
+              {analyzeLabel.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Leyendo etiqueta...</>
+              ) : (
+                <><ScanLine className="h-4 w-4 mr-2" /> Escanear etiqueta nutricional</>
+              )}
+            </Button>
+            <input
+              ref={labelFileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleScanLabel}
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2 space-y-1">
+                <Label>Nombre</Label>
+                <Input
+                  value={edit.name}
+                  onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
+                  placeholder="Yogur griego natural"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Marca</Label>
+                <Input
+                  value={edit.brand}
+                  onChange={(e) => setEdit((s) => ({ ...s, brand: e.target.value }))}
+                  placeholder="Pastoret"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Cantidad</Label>
+                <Input
+                  value={edit.quantity_estimate}
+                  onChange={(e) => setEdit((s) => ({ ...s, quantity_estimate: e.target.value }))}
+                  placeholder="500 g"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Cantidad (opcional)</Label>
-              <Input value={manualQty} onChange={(e) => setManualQty(e.target.value)} placeholder="Ej: 500 g, 1 L" />
+
+            <div className="pt-2">
+              <p className="text-sm font-semibold mb-2">Valores por 100 {edit.serving_unit || "g"}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Calorias (kcal)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={edit.calories_per_100g}
+                    onChange={(e) => setEdit((s) => ({ ...s, calories_per_100g: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Unidad</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={edit.serving_unit}
+                    onChange={(e) => setEdit((s) => ({ ...s, serving_unit: e.target.value }))}
+                  >
+                    <option value="g">g (solido)</option>
+                    <option value="ml">ml (liquido)</option>
+                    <option value="unit">unidad</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Proteina (g)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={edit.protein_g_per_100g}
+                    onChange={(e) => setEdit((s) => ({ ...s, protein_g_per_100g: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Carbohidratos (g)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={edit.carbs_g_per_100g}
+                    onChange={(e) => setEdit((s) => ({ ...s, carbs_g_per_100g: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Grasa (g)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={edit.fat_g_per_100g}
+                    onChange={(e) => setEdit((s) => ({ ...s, fat_g_per_100g: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Fibra (g)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={edit.fiber_g_per_100g}
+                    onChange={(e) => setEdit((s) => ({ ...s, fiber_g_per_100g: e.target.value }))}
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setManualOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAddManual}>Añadir</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
