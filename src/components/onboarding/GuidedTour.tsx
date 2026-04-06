@@ -63,18 +63,22 @@ export function GuidedTour() {
   // Track last step we "navigated for" so re-renders don't loop-navigate.
   const lastNavigatedStep = useRef<number>(-1)
 
-  // First-time auto-open (per user)
+  // First-time auto-open (per user). Uses a ref so it only fires once per
+  // mount — avoids the step-5 reset loop when the tour itself navigates
+  // back to /inicio on its last step.
+  const hasAutoOpenedRef = useRef(false)
   useEffect(() => {
     if (!storageKey) return
+    if (hasAutoOpenedRef.current) return
     const done = localStorage.getItem(storageKey)
-    if (!done) {
-      // Only auto-open on the home page so it doesn't surprise mid-flow
-      if (location.pathname === "/inicio") {
-        setOpen(true)
-        setStep(0)
-        lastNavigatedStep.current = 0
-      }
-    }
+    if (done) return
+    if (location.pathname !== "/inicio") return
+    hasAutoOpenedRef.current = true
+    // Mark as done upfront so a crash / refresh never reopens it automatically.
+    localStorage.setItem(storageKey, "1")
+    setOpen(true)
+    setStep(0)
+    lastNavigatedStep.current = 0
   }, [storageKey, location.pathname])
 
   // Listen for manual open event
