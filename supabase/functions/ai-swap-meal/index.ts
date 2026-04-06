@@ -22,7 +22,7 @@ interface SwappedMeal {
   prep_time_min: number
 }
 
-const MODEL = "claude-haiku-4-5"
+const MODEL = "claude-haiku-4-5-20251001"
 
 const SYSTEM = `Eres un nutricionista. Reemplaza una comida por otra diferente pero con macros similares (dentro de +-10%).
 Respeta las preferencias y alergias del usuario. Devuelve SOLO JSON con esta estructura:

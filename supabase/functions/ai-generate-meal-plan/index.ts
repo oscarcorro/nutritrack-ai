@@ -27,7 +27,7 @@ interface GeneratedPlan {
   meals: GeneratedMeal[]
 }
 
-const MODEL = "claude-sonnet-4-5"
+const MODEL = "claude-sonnet-4-6"
 
 const SYSTEM = `Eres un nutricionista experto que crea planes de comida personalizados, variados y deliciosos.
 

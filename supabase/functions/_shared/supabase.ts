@@ -87,12 +87,14 @@ export function buildUserContextPrompt(ctx: UserContext): string {
 - Notas de salud: ${p.health_notes ?? "ninguna"}
 
 OBJETIVOS NUTRICIONALES:
-- Peso actual: ${g?.current_weight_kg ?? "?"} kg
+- Peso actual: ${p.weight_kg ?? g?.starting_weight_kg ?? "?"} kg
 - Peso objetivo: ${g?.target_weight_kg ?? "?"} kg
-- Calorias/dia: ${g?.daily_calories ?? "?"} kcal
+- Tipo de objetivo: ${g?.goal_type ?? "?"}
+- Calorias/dia: ${g?.daily_calories_target ?? "?"} kcal
 - Proteina: ${g?.protein_g ?? "?"} g
 - Carbos: ${g?.carbs_g ?? "?"} g
 - Grasa: ${g?.fat_g ?? "?"} g
+- Fibra: ${g?.fiber_g ?? "?"} g
 - Comidas al dia: ${g?.meals_per_day ?? 5}
 
 PREFERENCIAS ALIMENTARIAS:

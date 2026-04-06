@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const model = hasImage ? "claude-sonnet-4-5" : "claude-haiku-4-5"
+    const model = hasImage ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001"
 
     const content: AnthropicContentBlock[] = []
     if (hasImage) {
