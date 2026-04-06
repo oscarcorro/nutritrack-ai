@@ -2,9 +2,11 @@ import { Outlet, Link, useLocation } from "react-router-dom"
 import { User } from "lucide-react"
 import { BottomTabBar } from "./BottomTabBar"
 import { GuidedTour } from "@/components/onboarding/GuidedTour"
+import { useProfile } from "@/hooks/use-profile"
 
 export function MobileLayout() {
   const location = useLocation()
+  const { data: profile } = useProfile()
   return (
     <div className="flex flex-col min-h-svh bg-background max-w-lg mx-auto relative">
       {/* Header */}
@@ -19,13 +21,16 @@ export function MobileLayout() {
             </span>
             <h1 className="text-lg font-bold tracking-tight nt-gradient-text">NutriTrack</h1>
           </Link>
-          <Link
-            to="/perfil"
-            className="flex items-center justify-center w-11 h-11 rounded-full bg-secondary hover:bg-secondary/70 border border-border/60"
-            aria-label="Perfil"
+          <div
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-secondary border border-border/60 overflow-hidden"
+            aria-hidden="true"
           >
-            <User className="h-5 w-5 text-foreground" />
-          </Link>
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <User className="h-5 w-5 text-foreground" />
+            )}
+          </div>
         </div>
       </header>
 

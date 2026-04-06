@@ -34,7 +34,11 @@ Estructura:
   "fiber_g": 5,
   "confidence": 0.85
 }
-Calorias y macros en numeros (no strings). Confidence entre 0 y 1. Considera el perfil del usuario para mejor estimacion. Responde SOLO con el JSON, sin texto adicional.`
+Calorias y macros en numeros (no strings). Confidence entre 0 y 1. Considera el perfil del usuario para mejor estimacion.
+
+FIBRA OBLIGATORIA: el campo "fiber_g" debe estar SIEMPRE presente y ser un numero (nunca null, nunca ausente). Si tienes el dato exacto de una etiqueta o de la despensa, usalo. Si no, da una aproximacion razonable basada en valores tipicos para ese tipo de alimento (frutas ~2-4g/100g, verduras ~2-5g/100g, legumbres ~6-8g/100g, cereales integrales ~5-10g/100g, carnes/pescados/lacteos ~0g). Suma la fibra de todos los ingredientes del plato.
+
+Responde SOLO con el JSON, sin texto adicional.`
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })

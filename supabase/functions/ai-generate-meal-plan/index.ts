@@ -3,7 +3,7 @@
 // Generates a personalized daily meal plan and inserts it into meal_plans + meal_plan_items.
 
 import { corsHeaders } from "../_shared/cors.ts"
-import { callAnthropic, extractJSON, WEB_SEARCH_TOOL } from "../_shared/anthropic.ts"
+import { callAnthropic, extractJSON } from "../_shared/anthropic.ts"
 import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from "../_shared/supabase.ts"
 
 interface RequestBody {
@@ -178,7 +178,6 @@ IMPORTANTE: Genera SOLO las comidas restantes (meal_type NO incluidos arriba). E
       ],
       max_tokens: 8192,
       temperature: 0.8,
-      tools: [WEB_SEARCH_TOOL],
     })
 
     const parsed = extractJSON<GeneratedPlan>(text)

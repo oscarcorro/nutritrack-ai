@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { Home, UtensilsCrossed, Plus, TrendingUp } from "lucide-react"
+import { Home, UtensilsCrossed, Plus, TrendingUp, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const tabs = [
@@ -7,6 +7,7 @@ const tabs = [
   { to: "/plan", icon: UtensilsCrossed, label: "Plan" },
   { to: "/registrar", icon: Plus, label: "Registrar", fab: true },
   { to: "/progreso", icon: TrendingUp, label: "Progreso" },
+  { to: "/perfil", icon: User, label: "Perfil" },
 ]
 
 export function BottomTabBar() {

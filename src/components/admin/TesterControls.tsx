@@ -179,7 +179,7 @@ export function TesterControls() {
           <p className="text-xs text-muted-foreground">
             Controles de prueba visibles solo para tu cuenta. Todas las acciones son destructivas.
           </p>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {actions.map((a) => {
               const destructive = a.key === "nuke"
               return (
@@ -187,15 +187,15 @@ export function TesterControls() {
                   key={a.key}
                   variant={destructive ? "destructive" : "outline"}
                   size="sm"
-                  className="justify-start"
+                  className="w-full justify-start text-left text-sm whitespace-normal h-auto py-2 min-h-[44px]"
                   onClick={() => setConfirm(a)}
                 >
                   {a.key === "profile" ? (
-                    <RotateCcw className="h-4 w-4 mr-2" />
+                    <RotateCcw className="h-4 w-4 mr-2 shrink-0" />
                   ) : (
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    <Trash2 className="h-4 w-4 mr-2 shrink-0" />
                   )}
-                  {a.label}
+                  <span className="flex-1 break-words">{a.label}</span>
                 </Button>
               )
             })}

@@ -251,7 +251,15 @@ export default function MealPlanPage() {
               </CardContent>
             </Card>
           )}
-          <div data-tour="plan-generate"><DailyContextForm onSubmit={handleGenerateWithContext} generating={generating} /></div>
+          <div data-tour="plan-generate">
+            <DailyContextForm
+              onSubmit={handleGenerateWithContext}
+              generating={generating}
+              loggedMealTypes={(todayLog ?? [])
+                .map((l) => l.meal_type)
+                .filter((t): t is MealType => !!t)}
+            />
+          </div>
           {generating && (
             <p className="text-xs text-muted-foreground text-center">Puedes cambiar de pestaña, seguiremos generando.</p>
           )}

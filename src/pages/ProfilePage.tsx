@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { supabase } from "@/integrations/supabase/client"
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile"
 import { useCurrentGoal, useCreateGoal } from "@/hooks/use-goals"
 import { useFoodPreferences, useDeleteFoodPreference } from "@/hooks/use-food-preferences"
@@ -55,8 +56,10 @@ const DEFAULT_MEAL_TIMES: Record<MealType, string> = {
 }
 
 export default function ProfilePage() {
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const navigate = useNavigate()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const { data: profile, isLoading: profileLoading } = useProfile()
   const { data: goal } = useCurrentGoal()
   const { data: foodPrefs } = useFoodPreferences()
@@ -207,6 +210,40 @@ export default function ProfilePage() {
     }
   }
 
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("La imagen es demasiado grande (max 5MB)")
+      return
+    }
+    setUploadingAvatar(true)
+    try {
+      const ext = file.name.split(".").pop() || "jpg"
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path)
+      await updateProfile.mutateAsync({ avatar_url: pub.publicUrl })
+      toast.success("Foto actualizada")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al subir foto")
+    } finally {
+      setUploadingAvatar(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ""
+    }
+  }
+
+  const initials = (profile?.display_name || "?")
+    .split(" ")
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+
   const handleSignOut = async () => {
     await signOut()
     navigate("/auth", { replace: true })
@@ -235,9 +272,33 @@ export default function ProfilePage() {
         <CardContent className="p-5">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10">
-                <User className="h-7 w-7 text-primary" />
-              </div>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                aria-label="Cambiar foto de perfil"
+                className="relative flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 overflow-hidden border border-border/60"
+              >
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : initials ? (
+                  <span className="text-xl font-bold text-primary">{initials}</span>
+                ) : (
+                  <User className="h-8 w-8 text-primary" />
+                )}
+                {uploadingAvatar && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  </span>
+                )}
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarSelect}
+              />
               <div>
                 <p className="text-xl font-bold">{profile.display_name}</p>
                 <p className="text-sm text-muted-foreground">

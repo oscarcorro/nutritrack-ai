@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
 import { useAnalyzeFood, type AnalyzedFood } from "@/hooks/use-ai"
@@ -7,27 +7,34 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { MEAL_TYPE_LABELS } from "@/lib/nutrition"
 import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
-import { Camera, Mic, FileText, Loader2, Upload, MicOff } from "lucide-react"
+import { Mic, Loader2, MicOff, Paperclip, Send, Sparkles } from "lucide-react"
 import { compressImage, compressDataUrl } from "@/lib/image"
+
+type ChatMessage =
+  | { id: string; role: "user"; kind: "text"; text: string }
+  | { id: string; role: "user"; kind: "image"; src: string }
+  | { id: string; role: "user"; kind: "audio"; transcript: string }
+  | { id: string; role: "assistant"; kind: "analyzing" }
+  | { id: string; role: "assistant"; kind: "result"; result: AnalyzedFood }
+  | { id: string; role: "assistant"; kind: "error"; text: string }
+  | { id: string; role: "assistant"; kind: "saved"; mealName: string }
 
 function ManualEntryForm({
   onSave,
   saving,
   initial,
 }: {
-  inputMethod: LogInputMethod
-  rawText: string
   onSave: (data: {
     meal_name: string
     calories: number
     protein_g: number
     carbs_g: number
     fat_g: number
+    fiber_g: number
     meal_type: MealType
   }) => void
   saving: boolean
@@ -38,6 +45,7 @@ function ManualEntryForm({
   const [protein, setProtein] = useState(initial ? String(Math.round(initial.protein_g)) : "")
   const [carbs, setCarbs] = useState(initial ? String(Math.round(initial.carbs_g)) : "")
   const [fat, setFat] = useState(initial ? String(Math.round(initial.fat_g)) : "")
+  const [fiber, setFiber] = useState(initial?.fiber_g != null ? String(Math.round(initial.fiber_g)) : "")
   const [mealType, setMealType] = useState<MealType>("lunch")
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -56,13 +64,14 @@ function ManualEntryForm({
       protein_g: parseFloat(protein) || 0,
       carbs_g: parseFloat(carbs) || 0,
       fat_g: parseFloat(fat) || 0,
+      fiber_g: parseFloat(fiber) || 0,
       meal_type: mealType,
     })
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-      <div className="space-y-2">
+    <form onSubmit={handleSubmit} className="space-y-3 mt-3">
+      <div className="space-y-1.5">
         <Label htmlFor="meal-type">Tipo de comida</Label>
         <Select value={mealType} onValueChange={(v) => setMealType(v as MealType)}>
           <SelectTrigger>
@@ -75,30 +84,34 @@ function ManualEntryForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="meal-name">Nombre de la comida</Label>
-        <Input id="meal-name" placeholder="Ej: Pechuga de pollo con arroz" value={mealName} onChange={(e) => setMealName(e.target.value)} />
+      <div className="space-y-1.5">
+        <Label htmlFor="meal-name">Nombre</Label>
+        <Input id="meal-name" value={mealName} onChange={(e) => setMealName(e.target.value)} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="calories">Calorias (kcal)</Label>
-          <Input id="calories" type="number" placeholder="450" value={calories} onChange={(e) => setCalories(e.target.value)} />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="calories">Calorias</Label>
+          <Input id="calories" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="protein">Proteina (g)</Label>
-          <Input id="protein" type="number" placeholder="30" value={protein} onChange={(e) => setProtein(e.target.value)} />
+          <Input id="protein" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="carbs">Carbos (g)</Label>
-          <Input id="carbs" type="number" placeholder="50" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+          <Input id="carbs" type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="fat">Grasa (g)</Label>
-          <Input id="fat" type="number" placeholder="15" value={fat} onChange={(e) => setFat(e.target.value)} />
+          <Input id="fat" type="number" value={fat} onChange={(e) => setFat(e.target.value)} />
+        </div>
+        <div className="space-y-1.5 col-span-2">
+          <Label htmlFor="fiber">Fibra (g)</Label>
+          <Input id="fiber" type="number" value={fiber} onChange={(e) => setFiber(e.target.value)} />
         </div>
       </div>
       <Button type="submit" className="w-full" size="lg" disabled={saving}>
-        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Guardar"}
+        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Guardar comida"}
       </Button>
     </form>
   )
@@ -109,111 +122,78 @@ export default function LogMealPage() {
   const createFoodLog = useCreateFoodLog()
   const analyzeFood = useAnalyzeFood()
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState("text")
-  const [aiResult, setAiResult] = useState<AnalyzedFood | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      kind: "saved",
+      mealName: "",
+    },
+  ])
+  const [, setPendingResult] = useState<AnalyzedFood | null>(null)
+  const [pendingMethod, setPendingMethod] = useState<LogInputMethod>("text")
+  const [pendingRawText, setPendingRawText] = useState<string | null>(null)
 
-  const runAnalyze = async (input: { text?: string; transcript?: string; image_base64?: string; media_type?: string }) => {
-    try {
-      const result = await analyzeFood.mutateAsync(input)
-      setAiResult(result)
-      toast.success("Analizado con IA")
-      return true
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al analizar")
-      setAiResult(null)
-      return false
-    }
-  }
-
-  // Photo state
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
-  const [showPhotoForm, setShowPhotoForm] = useState(false)
+  // Composer state
+  const [textInput, setTextInput] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [cameraActive, setCameraActive] = useState(false)
-  const streamRef = useRef<MediaStream | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Audio state
   const [isRecording, setIsRecording] = useState(false)
-  const [transcript, setTranscript] = useState("")
-  const [showAudioForm, setShowAudioForm] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null) // eslint-disable-line no-undef
+  const audioTranscriptRef = useRef("")
 
-  // Text state
-  const [textInput, setTextInput] = useState("")
-  const [showTextForm, setShowTextForm] = useState(false)
+  useEffect(() => {
+    // autoscroll
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages])
 
-  const handleSave = async (data: {
-    meal_name: string
-    calories: number
-    protein_g: number
-    carbs_g: number
-    fat_g: number
-    meal_type: MealType
-  }) => {
-    setSaving(true)
+  // Autosize textarea
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = "auto"
+    ta.style.height = Math.min(ta.scrollHeight, 140) + "px"
+  }, [textInput])
+
+  const pushMessage = (m: ChatMessage) => setMessages((prev) => [...prev, m])
+  const replaceLastAnalyzing = (m: ChatMessage) =>
+    setMessages((prev) => {
+      const idx = [...prev].reverse().findIndex((x) => x.kind === "analyzing")
+      if (idx === -1) return [...prev, m]
+      const realIdx = prev.length - 1 - idx
+      const next = prev.slice()
+      next[realIdx] = m
+      return next
+    })
+
+  const runAnalyze = async (
+    input: { text?: string; transcript?: string; image_base64?: string; media_type?: string },
+    method: LogInputMethod,
+    rawText: string | null,
+  ) => {
+    pushMessage({ id: `a-${Date.now()}`, role: "assistant", kind: "analyzing" })
     try {
-      const rawText = activeTab === "text" ? textInput : activeTab === "audio" ? transcript : null
-      await createFoodLog.mutateAsync({
-        logged_at: new Date().toISOString(),
-        meal_type: data.meal_type,
-        input_method: activeTab as LogInputMethod,
-        raw_text: rawText,
-        photo_url: null,
-        audio_url: null,
-        meal_name: data.meal_name,
-        description: null,
-        items: [],
-        calories: data.calories,
-        protein_g: data.protein_g,
-        carbs_g: data.carbs_g,
-        fat_g: data.fat_g,
-        fiber_g: null,
-        meal_plan_item_id: null,
-        ai_confidence: null,
-        ai_model: null,
-      })
-      toast.success("Comida registrada")
-      navigate("/inicio")
-    } catch {
-      toast.error("Error al guardar")
-    } finally {
-      setSaving(false)
+      const result = await analyzeFood.mutateAsync(input)
+      setPendingResult(result)
+      setPendingMethod(method)
+      setPendingRawText(rawText)
+      replaceLastAnalyzing({ id: `r-${Date.now()}`, role: "assistant", kind: "result", result })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error al analizar"
+      replaceLastAnalyzing({ id: `e-${Date.now()}`, role: "assistant", kind: "error", text: msg })
+      toast.error(msg)
     }
   }
 
-  // Camera functions
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-      setCameraActive(true)
-    } catch {
-      toast.error("No se pudo acceder a la camara")
-    }
-  }
-
-  const capturePhoto = async () => {
-    if (!videoRef.current) return
-    const canvas = document.createElement("canvas")
-    canvas.width = videoRef.current.videoWidth
-    canvas.height = videoRef.current.videoHeight
-    canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0)
-    const dataUrl = canvas.toDataURL("image/jpeg")
-    setPhotoPreview(dataUrl)
-    stopCamera()
-    const compressed = await compressDataUrl(dataUrl)
-    const ok = await runAnalyze({ image_base64: compressed, media_type: "image/jpeg" })
-    if (ok) setShowPhotoForm(true)
-  }
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-    setCameraActive(false)
+  const handleSendText = async () => {
+    const text = textInput.trim()
+    if (!text) return
+    setTextInput("")
+    pushMessage({ id: `u-${Date.now()}`, role: "user", kind: "text", text })
+    await runAnalyze({ text }, "text", text)
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,21 +201,23 @@ export default function LogMealPage() {
     if (!file) return
     try {
       const dataUrl = await compressImage(file)
-      setPhotoPreview(dataUrl)
-      const ok = await runAnalyze({ image_base64: dataUrl, media_type: "image/jpeg" })
-      if (ok) setShowPhotoForm(true)
+      pushMessage({ id: `u-${Date.now()}`, role: "user", kind: "image", src: dataUrl })
+      const compressed = await compressDataUrl(dataUrl)
+      await runAnalyze({ image_base64: compressed, media_type: "image/jpeg" }, "photo", null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al leer foto")
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
-  // Audio functions
   const startRecording = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
       toast.error("Tu navegador no soporta reconocimiento de voz")
       return
     }
+    audioTranscriptRef.current = ""
     const recognition = new SpeechRecognition()
     recognition.lang = "es-ES"
     recognition.continuous = true
@@ -245,7 +227,7 @@ export default function LogMealPage() {
       for (let i = 0; i < event.results.length; i++) {
         text += event.results[i][0].transcript
       }
-      setTranscript(text)
+      audioTranscriptRef.current = text
     }
     recognition.onerror = () => {
       toast.error("Error en el reconocimiento de voz")
@@ -259,177 +241,193 @@ export default function LogMealPage() {
   const stopRecording = async () => {
     recognitionRef.current?.stop()
     setIsRecording(false)
-    if (transcript) {
-      const ok = await runAnalyze({ transcript })
-      if (ok) setShowAudioForm(true)
+    const transcript = audioTranscriptRef.current.trim()
+    if (!transcript) {
+      toast.error("No se pudo escuchar nada")
+      return
+    }
+    pushMessage({ id: `u-${Date.now()}`, role: "user", kind: "audio", transcript })
+    await runAnalyze({ transcript }, "audio", transcript)
+  }
+
+  const handleSave = async (data: {
+    meal_name: string
+    calories: number
+    protein_g: number
+    carbs_g: number
+    fat_g: number
+    fiber_g: number
+    meal_type: MealType
+  }) => {
+    setSaving(true)
+    try {
+      await createFoodLog.mutateAsync({
+        logged_at: new Date().toISOString(),
+        meal_type: data.meal_type,
+        input_method: pendingMethod,
+        raw_text: pendingRawText,
+        photo_url: null,
+        audio_url: null,
+        meal_name: data.meal_name,
+        description: null,
+        items: [],
+        calories: data.calories,
+        protein_g: data.protein_g,
+        carbs_g: data.carbs_g,
+        fat_g: data.fat_g,
+        fiber_g: data.fiber_g || null,
+        meal_plan_item_id: null,
+        ai_confidence: null,
+        ai_model: null,
+      })
+      toast.success("Comida registrada")
+      navigate("/inicio")
+    } catch {
+      toast.error("Error al guardar")
+    } finally {
+      setSaving(false)
     }
   }
 
+  const isAnalyzing = analyzeFood.isPending
+
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Registrar comida</h2>
+    <div className="flex flex-col h-[calc(100svh-9rem)]">
+      <h2 className="text-2xl font-bold mb-3">Registrar comida</h2>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList data-tour="log-tabs">
-          <TabsTrigger value="photo" className="gap-1">
-            <Camera className="h-4 w-4" /> Foto
-          </TabsTrigger>
-          <TabsTrigger value="audio" className="gap-1">
-            <Mic className="h-4 w-4" /> Audio
-          </TabsTrigger>
-          <TabsTrigger value="text" className="gap-1">
-            <FileText className="h-4 w-4" /> Texto
-          </TabsTrigger>
-        </TabsList>
+      {/* Chat scroll area */}
+      <div
+        ref={scrollRef}
+        data-tour="log-tabs"
+        className="flex-1 overflow-y-auto space-y-3 pb-3"
+      >
+        {/* Intro bubble */}
+        <div className="flex items-start gap-2">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Sparkles className="h-4 w-4 text-primary" />
+          </div>
+          <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 text-base max-w-[85%]">
+            Cuentame que has comido. Puedes escribirlo, hacerle una foto o dictarlo por voz.
+          </div>
+        </div>
 
-        {/* Photo tab */}
-        <TabsContent value="photo">
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              {!showPhotoForm ? (
-                <>
-                  {cameraActive ? (
-                    <div className="space-y-3">
-                      <video ref={videoRef} autoPlay playsInline className="w-full rounded-xl" />
-                      <div className="flex gap-3">
-                        <Button onClick={capturePhoto} size="lg" className="flex-1">
-                          <Camera className="h-5 w-5 mr-2" /> Capturar
-                        </Button>
-                        <Button onClick={stopCamera} variant="outline" size="lg">
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {photoPreview && (
-                        <img src={photoPreview} alt="Foto de comida" className="w-full rounded-xl" />
-                      )}
-                      <Button onClick={startCamera} size="lg" className="w-full h-20 text-lg">
-                        <Camera className="h-8 w-8 mr-3" /> Tomar foto
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        className="w-full"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Upload className="h-5 w-5 mr-2" /> O elegir foto
-                      </Button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleFileSelect}
+        {messages.map((m) => {
+          if (m.id === "welcome") return null
+          if (m.role === "user") {
+            return (
+              <div key={m.id} className="flex justify-end">
+                <div className="rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-3 py-2 text-base max-w-[85%]">
+                  {m.kind === "text" && <p>{m.text}</p>}
+                  {m.kind === "audio" && <p className="italic">{m.transcript}</p>}
+                  {m.kind === "image" && (
+                    <img src={m.src} alt="Foto" className="rounded-xl max-h-56" />
+                  )}
+                </div>
+              </div>
+            )
+          }
+          // assistant messages
+          return (
+            <div key={m.id} className="flex items-start gap-2">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
+              <div className="max-w-[90%] flex-1">
+                {m.kind === "analyzing" && (
+                  <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 inline-flex items-center gap-2 nt-pulse-soft">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-base">Analizando...</span>
+                  </div>
+                )}
+                {m.kind === "error" && (
+                  <div className="rounded-2xl rounded-tl-sm bg-destructive/10 text-destructive px-3 py-2 text-sm">
+                    {m.text}
+                  </div>
+                )}
+                {m.kind === "result" && (
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Revisa y ajusta antes de guardar.
+                      </p>
+                      <ManualEntryForm
+                        onSave={handleSave}
+                        saving={saving}
+                        initial={m.result}
                       />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  {photoPreview && (
-                    <img src={photoPreview} alt="Foto capturada" className="w-full rounded-xl max-h-48 object-cover" />
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Revisa y ajusta los datos detectados por IA antes de guardar.
-                  </p>
-                  <ManualEntryForm inputMethod="photo" rawText="" onSave={handleSave} saving={saving} initial={aiResult} />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
 
-        {/* Audio tab */}
-        <TabsContent value="audio">
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              {!showAudioForm ? (
-                <>
-                  <Button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    size="lg"
-                    variant={isRecording ? "destructive" : "default"}
-                    className="w-full h-20 text-lg"
-                  >
-                    {isRecording ? (
-                      <><MicOff className="h-8 w-8 mr-3" /> Detener</>
-                    ) : (
-                      <><Mic className="h-8 w-8 mr-3" /> Hablar</>
-                    )}
-                  </Button>
-                  {isRecording && (
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 bg-destructive rounded-full animate-pulse" />
-                      <p className="text-sm text-muted-foreground">Escuchando...</p>
-                    </div>
-                  )}
-                  {transcript && (
-                    <div className="p-3 bg-secondary rounded-xl">
-                      <p className="text-base">{transcript}</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="p-3 bg-secondary rounded-xl">
-                    <p className="text-sm text-muted-foreground mb-1">Transcripcion:</p>
-                    <p className="text-base">{transcript}</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Revisa y ajusta los datos detectados por IA antes de guardar.
-                  </p>
-                  <ManualEntryForm inputMethod="audio" rawText={transcript} onSave={handleSave} saving={saving} initial={aiResult} />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* Composer */}
+      <div className="sticky bottom-0 bg-background pt-2">
+        <div className="flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isAnalyzing}
+            className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-secondary text-muted-foreground shrink-0"
+            aria-label="Adjuntar foto"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <textarea
+            ref={textareaRef}
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                handleSendText()
+              }
+            }}
+            placeholder="Escribe lo que has comido..."
+            rows={1}
+            disabled={isAnalyzing}
+            className="flex-1 resize-none bg-transparent outline-none text-base py-2 min-h-[44px] max-h-[140px] placeholder:text-muted-foreground"
+          />
+          <button
+            type="button"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isAnalyzing}
+            className={`flex items-center justify-center w-11 h-11 rounded-full shrink-0 ${
+              isRecording ? "bg-destructive text-destructive-foreground" : "hover:bg-secondary text-muted-foreground"
+            }`}
+            aria-label={isRecording ? "Detener grabacion" : "Grabar audio"}
+          >
+            {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          </button>
+          <button
+            type="button"
+            onClick={handleSendText}
+            disabled={isAnalyzing || !textInput.trim()}
+            className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground shrink-0 disabled:opacity-40"
+            aria-label="Enviar"
+          >
+            {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+          </button>
+        </div>
+        {isRecording && (
+          <p className="text-xs text-center text-muted-foreground mt-2 flex items-center justify-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+            Escuchando... toca el microfono para parar.
+          </p>
+        )}
+      </div>
 
-        {/* Text tab */}
-        <TabsContent value="text">
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              {!showTextForm ? (
-                <>
-                  <Textarea
-                    placeholder="Describe lo que has comido... Ej: Pechuga de pollo a la plancha con ensalada y arroz blanco"
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    className="min-h-[120px]"
-                  />
-                  <Button
-                    size="lg"
-                    className="w-full"
-                    disabled={analyzeFood.isPending}
-                    onClick={async () => {
-                      if (!textInput.trim()) {
-                        toast.error("Escribe lo que comiste")
-                        return
-                      }
-                      const ok = await runAnalyze({ text: textInput })
-                      if (ok) setShowTextForm(true)
-                    }}
-                  >
-                    {analyzeFood.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Analizando...</> : "Analizar con IA"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="p-3 bg-secondary rounded-xl">
-                    <p className="text-base">{textInput}</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Revisa y ajusta los datos estimados por IA antes de guardar.
-                  </p>
-                  <ManualEntryForm inputMethod="text" rawText={textInput} onSave={handleSave} saving={saving} initial={aiResult} />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   )
 }
