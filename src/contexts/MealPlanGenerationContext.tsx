@@ -43,7 +43,18 @@ export function MealPlanGenerationProvider({ children }: { children: ReactNode }
             preferences: options?.preferences,
           },
         })
-        if (error) throw error
+        if (error) {
+          // Read the underlying response body so we surface the real Anthropic / function error
+          let detail = error.message ?? "Edge function failed"
+          try {
+            const resp = (error as { context?: Response }).context
+            if (resp && typeof resp.json === "function") {
+              const j = (await resp.clone().json()) as { error?: string }
+              if (j?.error) detail = j.error
+            }
+          } catch { /* ignore */ }
+          throw new Error(detail)
+        }
         if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error)
         toast.success(`Plan del ${date} generado`)
         queryClient.invalidateQueries({ queryKey: ["meal-plan", user?.id, date] })
