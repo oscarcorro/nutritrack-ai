@@ -1,0 +1,23 @@
+project_id = "ixaaeeiuxjrtbfubyrqf"
+
+# Edge functions: disable the platform JWT gateway check.
+# Each function does its own auth via getUser() inside the handler,
+# and the platform's HS256 verifier rejects this project's ES256 tokens.
+
+[functions.ai-generate-meal-plan]
+verify_jwt = false
+
+[functions.ai-analyze-food]
+verify_jwt = false
+
+[functions.ai-suggest-meal]
+verify_jwt = false
+
+[functions.ai-swap-meal]
+verify_jwt = false
+
+[functions.ai-analyze-pantry]
+verify_jwt = false
+
+[functions.ai-analyze-nutrition-label]
+verify_jwt = false
