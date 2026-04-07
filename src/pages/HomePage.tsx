@@ -7,6 +7,9 @@ import { useProfile } from "@/hooks/use-profile"
 import { useCurrentGoal } from "@/hooks/use-goals"
 import { useTodayFoodLog } from "@/hooks/use-food-log"
 import { useMealPlan } from "@/hooks/use-meal-plan"
+import { useWeightLog } from "@/hooks/use-weight-log"
+import { HydrationCard } from "@/components/home/HydrationCard"
+import { WeeklyInsights } from "@/components/home/WeeklyInsights"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -74,6 +77,10 @@ export default function HomePage() {
   const { data: foodLogs, isLoading: logsLoading } = useTodayFoodLog()
   const today = new Date().toISOString().split("T")[0]
   const { data: mealPlan } = useMealPlan(today)
+  const { data: recentWeights } = useWeightLog(14)
+  const currentWeightKg = recentWeights && recentWeights.length > 0
+    ? recentWeights[recentWeights.length - 1].weight_kg
+    : profile?.weight_kg ?? null
 
   const todayStats = useMemo(() => {
     if (!foodLogs) return { calories: 0, protein: 0, carbs: 0, fat: 0 }
@@ -229,6 +236,12 @@ export default function HomePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Hidratación */}
+      <HydrationCard weightKg={currentWeightKg} />
+
+      {/* Insights semanales (solo lunes) */}
+      <WeeklyInsights />
 
       {/* Quick actions */}
       <div data-tour="quick-actions" className="space-y-3">

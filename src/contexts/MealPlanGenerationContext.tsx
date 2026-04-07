@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/integrations/supabase/client"
 import { useAuth } from "@/contexts/AuthContext"
 import { toast } from "sonner"
+import { getPantryNames } from "@/components/pantry/PantryScreen"
 
 export interface GenerateOptions {
   daily_activities?: string
@@ -36,11 +37,13 @@ export function MealPlanGenerationProvider({ children }: { children: ReactNode }
       inFlight.current.add(date)
       force((n) => n + 1)
       try {
+        const pantryItems = getPantryNames()
         const { data, error } = await supabase.functions.invoke("ai-generate-meal-plan", {
           body: {
             plan_date: date,
             daily_activities: options?.daily_activities,
             preferences: options?.preferences,
+            pantry_items: pantryItems,
           },
         })
         if (error) {

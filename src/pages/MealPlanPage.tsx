@@ -11,13 +11,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart } from "lucide-react"
 import type { MealType } from "@/integrations/supabase/types"
 import { format, addDays, subDays, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
 import { DailyContextForm } from "@/components/plan/DailyContextForm"
 import { EditFoodLogDialog } from "@/components/log/EditFoodLogDialog"
 import type { FoodLog } from "@/integrations/supabase/types"
+import { PantryScreen } from "@/components/pantry/PantryScreen"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Progress } from "@/components/ui/progress"
+import { Link } from "react-router-dom"
 
 function MealCard({
   item,
@@ -133,6 +137,35 @@ export default function MealPlanPage() {
   const [editingLog, setEditingLog] = useState<FoodLog | null>(null)
   const { start: startGenerate, isGenerating } = useMealPlanGeneration()
   const generating = isGenerating(dateStr)
+  const [pantryOpen, setPantryOpen] = useState(false)
+  const [weekGenOpen, setWeekGenOpen] = useState(false)
+  const [weekGenRunning, setWeekGenRunning] = useState(false)
+  const [weekGenProgress, setWeekGenProgress] = useState(0)
+  const [weekGenCurrentDay, setWeekGenCurrentDay] = useState<string>("")
+
+  const weekDayLabelsLong = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+  const handleGenerateWeek = async () => {
+    setWeekGenRunning(true)
+    setWeekGenProgress(0)
+    const ws = startOfWeek(date, { weekStartsOn: 1 })
+    try {
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(ws, i)
+        const ds = format(d, "yyyy-MM-dd")
+        setWeekGenCurrentDay(weekDayLabelsLong[i])
+        setWeekGenProgress(Math.round((i / 7) * 100))
+        await startGenerate(ds)
+      }
+      setWeekGenProgress(100)
+      toast.success("Semana generada")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al generar semana")
+    } finally {
+      setWeekGenRunning(false)
+      setWeekGenOpen(false)
+    }
+  }
 
   const handleGenerateWithContext = (activities: string, preferences: string) => {
     // Fire-and-forget so navigation doesn't cancel the request.
@@ -223,6 +256,25 @@ export default function MealPlanPage() {
 
   return (
     <div className="space-y-4">
+      {/* Quick actions: pantry + shopping list */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => setPantryOpen((v) => !v)}
+        >
+          <Refrigerator className="h-4 w-4 mr-1" /> Despensa
+        </Button>
+        <Button asChild variant="outline" size="sm" className="flex-1">
+          <Link to="/compra">
+            <ShoppingCart className="h-4 w-4 mr-1" /> Lista de la compra
+          </Link>
+        </Button>
+      </div>
+
+      {pantryOpen && <PantryScreen onClose={() => setPantryOpen(false)} />}
+
       {/* Week strip */}
       <div className="grid grid-cols-7 gap-1">
         {weekDays.map((d, i) => {
@@ -249,6 +301,21 @@ export default function MealPlanPage() {
           )
         })}
       </div>
+
+      {/* Generate week */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => setWeekGenOpen(true)}
+        disabled={weekGenRunning}
+      >
+        {weekGenRunning ? (
+          <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Generando semana...</>
+        ) : (
+          <><CalendarRange className="h-4 w-4 mr-1" /> Generar semana</>
+        )}
+      </Button>
 
       {/* Date selector */}
       <div className="flex items-center justify-between">
@@ -419,6 +486,38 @@ export default function MealPlanPage() {
           </Card>
         </>
       )}
+
+      <Dialog open={weekGenOpen} onOpenChange={(v) => { if (!weekGenRunning) setWeekGenOpen(v) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generar plan de la semana</DialogTitle>
+          </DialogHeader>
+          {weekGenRunning ? (
+            <div className="space-y-3">
+              <p className="text-sm">
+                Día <strong>{Math.min(7, Math.floor((weekGenProgress / 100) * 7) + 1)}</strong> de 7
+                {weekGenCurrentDay && <> · <span className="capitalize">{weekGenCurrentDay}</span></>}
+              </p>
+              <Progress value={weekGenProgress} />
+              <p className="text-xs text-muted-foreground">
+                Generando los 7 días de forma secuencial. No cierres la app.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Se generarán los 7 días (Lun-Dom) de la semana actual de forma secuencial. Tardará unos minutos.
+            </p>
+          )}
+          <DialogFooter>
+            {!weekGenRunning && (
+              <>
+                <Button variant="outline" onClick={() => setWeekGenOpen(false)}>Cancelar</Button>
+                <Button onClick={handleGenerateWeek}>Empezar</Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <EditFoodLogDialog
         log={editingLog}

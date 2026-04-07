@@ -1,4 +1,7 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
+import { compressImage } from "@/lib/image"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Camera, Images } from "lucide-react"
 import { useWeightLog, useCreateWeightLog } from "@/hooks/use-weight-log"
 import { useFoodLog } from "@/hooks/use-food-log"
 import { useCurrentGoal } from "@/hooks/use-goals"
@@ -37,6 +40,70 @@ export default function ProgressPage() {
 
   const [newWeight, setNewWeight] = useState("")
   const [savingWeight, setSavingWeight] = useState(false)
+
+  // Progress photos
+  type ProgressPhoto = { date: string; dataUrl: string }
+  const PHOTOS_KEY = "nt:progress-photos:v1"
+  const PHOTOS_MAX = 12
+  const [photos, setPhotos] = useState<ProgressPhoto[]>([])
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const [viewerPhoto, setViewerPhoto] = useState<ProgressPhoto | null>(null)
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareSelection, setCompareSelection] = useState<number[]>([])
+  const [comparePair, setComparePair] = useState<[ProgressPhoto, ProgressPhoto] | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PHOTOS_KEY)
+      if (raw) {
+        const arr = JSON.parse(raw)
+        if (Array.isArray(arr)) setPhotos(arr)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const persistPhotos = (list: ProgressPhoto[]) => {
+    setPhotos(list)
+    try {
+      localStorage.setItem(PHOTOS_KEY, JSON.stringify(list))
+    } catch {
+      toast.error("No se pudo guardar la foto (almacenamiento lleno)")
+    }
+  }
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const dataUrl = await compressImage(file, { maxDimension: 900, jpegQuality: 0.7, webpQuality: 0.65 })
+      const today = madridDateStr(new Date())
+      const next: ProgressPhoto[] = [...photos, { date: today, dataUrl }]
+      while (next.length > PHOTOS_MAX) next.shift()
+      persistPhotos(next)
+      toast.success("Foto guardada")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar foto")
+    } finally {
+      setUploadingPhoto(false)
+      if (photoInputRef.current) photoInputRef.current.value = ""
+    }
+  }
+
+  const togglePhotoSelection = (idx: number) => {
+    setCompareSelection((prev) => {
+      if (prev.includes(idx)) return prev.filter((i) => i !== idx)
+      if (prev.length >= 2) return [prev[1], idx]
+      const next = [...prev, idx]
+      if (next.length === 2) {
+        setComparePair([photos[next[0]], photos[next[1]]])
+      }
+      return next
+    })
+  }
 
   // Fetch last 7 days food log
   const sevenDaysAgo = format(subDays(new Date(), 6), "yyyy-MM-dd")
@@ -273,6 +340,130 @@ export default function ProgressPage() {
         <Download className="h-5 w-5 mr-2" />
         Exportar CSV
       </Button>
+
+      {/* Fotos de progreso */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Images className="h-4 w-4 text-primary" />
+            Fotos de progreso
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="lg"
+              className="flex-1"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                <>
+                  <Camera className="h-5 w-5 mr-2" />
+                  Subir foto
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              onClick={() => {
+                if (photos.length < 2) {
+                  toast.error("Necesitas al menos 2 fotos")
+                  return
+                }
+                setCompareMode((v) => !v)
+                setCompareSelection([])
+              }}
+            >
+              {compareMode ? "Cancelar" : "Comparar"}
+            </Button>
+          </div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handlePhotoSelect}
+          />
+          {compareMode && (
+            <p className="text-xs text-muted-foreground">Selecciona 2 fotos para compararlas.</p>
+          )}
+          {photos.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Aún no tienes fotos. Sube una para empezar tu seguimiento visual.
+            </p>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {photos.map((p, idx) => {
+                const selected = compareSelection.includes(idx)
+                return (
+                  <button
+                    key={`${p.date}-${idx}`}
+                    type="button"
+                    onClick={() => {
+                      if (compareMode) togglePhotoSelection(idx)
+                      else setViewerPhoto(p)
+                    }}
+                    className={`relative shrink-0 rounded-xl overflow-hidden border-2 ${
+                      selected ? "border-primary" : "border-border"
+                    }`}
+                  >
+                    <img src={p.dataUrl} alt={`Foto ${p.date}`} className="h-24 w-24 object-cover" />
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] py-0.5 text-center">
+                      {p.date}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Visor de foto individual */}
+      <Dialog open={!!viewerPhoto} onOpenChange={(v) => { if (!v) setViewerPhoto(null) }}>
+        <DialogContent className="max-w-md">
+          {viewerPhoto && (
+            <div className="space-y-2">
+              <img src={viewerPhoto.dataUrl} alt="Foto" className="w-full rounded-lg" />
+              <p className="text-sm text-center text-muted-foreground">{viewerPhoto.date}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Comparador */}
+      <Dialog
+        open={!!comparePair}
+        onOpenChange={(v) => {
+          if (!v) {
+            setComparePair(null)
+            setCompareSelection([])
+            setCompareMode(false)
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          {comparePair && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <img src={comparePair[0].dataUrl} alt="Antes" className="w-full rounded-lg" />
+                  <p className="text-xs text-center text-muted-foreground mt-1">{comparePair[0].date}</p>
+                </div>
+                <div>
+                  <img src={comparePair[1].dataUrl} alt="Después" className="w-full rounded-lg" />
+                  <p className="text-xs text-center text-muted-foreground mt-1">{comparePair[1].date}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-3">

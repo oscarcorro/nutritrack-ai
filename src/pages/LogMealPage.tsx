@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
 import { useQuery } from "@tanstack/react-query"
@@ -14,8 +14,55 @@ import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { MEAL_TYPE_LABELS } from "@/lib/nutrition"
 import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
-import { Mic, Loader2, MicOff, Paperclip, Send, Sparkles } from "lucide-react"
+import { Mic, Loader2, MicOff, Paperclip, Send, Sparkles, Star, History } from "lucide-react"
 import { compressImage, compressDataUrl } from "@/lib/image"
+
+const FAVS_KEY = "nt:favorites:v1"
+const FAVS_MAX = 30
+
+type Favorite = { name: string; kcal: number; p: number; c: number; g: number; fiber: number }
+
+function loadFavorites(): Favorite[] {
+  try {
+    const raw = localStorage.getItem(FAVS_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return []
+  }
+}
+function saveFavorites(list: Favorite[]) {
+  try {
+    localStorage.setItem(FAVS_KEY, JSON.stringify(list.slice(0, FAVS_MAX)))
+  } catch {
+    // ignore
+  }
+}
+function isFavorited(list: Favorite[], name: string): boolean {
+  const k = name.trim().toLowerCase()
+  return list.some((f) => f.name.trim().toLowerCase() === k)
+}
+
+function currentMealSlot(): MealType {
+  try {
+    const hh = parseInt(
+      new Intl.DateTimeFormat("es-ES", {
+        timeZone: "Europe/Madrid",
+        hour: "2-digit",
+        hour12: false,
+      }).format(new Date()),
+      10,
+    )
+    if (hh < 10) return "breakfast"
+    if (hh < 12) return "morning_snack"
+    if (hh < 16) return "lunch"
+    if (hh < 19) return "afternoon_snack"
+    return "dinner"
+  } catch {
+    return "lunch"
+  }
+}
 
 type ChatMessage =
   | { id: string; role: "user"; kind: "text"; text: string }
@@ -43,6 +90,7 @@ function ManualEntryForm({
   saving: boolean
   initial?: AnalyzedFood | null
 }) {
+  const [favs, setFavs] = useState<Favorite[]>(() => loadFavorites())
   const [mealName, setMealName] = useState(initial?.meal_name ?? "")
   const [calories, setCalories] = useState(initial ? String(Math.round(initial.calories)) : "")
   const [protein, setProtein] = useState(initial ? String(Math.round(initial.protein_g)) : "")
@@ -70,6 +118,35 @@ function ManualEntryForm({
       fiber_g: parseFloat(fiber) || 0,
       meal_type: mealType,
     })
+  }
+
+  const fav = isFavorited(favs, mealName)
+  const toggleFav = () => {
+    const name = mealName.trim()
+    if (!name) {
+      toast.error("Escribe el nombre primero")
+      return
+    }
+    const k = name.toLowerCase()
+    let next: Favorite[]
+    if (favs.some((f) => f.name.trim().toLowerCase() === k)) {
+      next = favs.filter((f) => f.name.trim().toLowerCase() !== k)
+      toast.success("Quitado de favoritos")
+    } else {
+      const entry: Favorite = {
+        name,
+        kcal: parseFloat(calories) || 0,
+        p: parseFloat(protein) || 0,
+        c: parseFloat(carbs) || 0,
+        g: parseFloat(fat) || 0,
+        fiber: parseFloat(fiber) || 0,
+      }
+      next = [entry, ...favs.filter((f) => f.name.trim().toLowerCase() !== k)].slice(0, FAVS_MAX)
+      toast.success("Añadido a favoritos")
+    }
+    setFavs(next)
+    saveFavorites(next)
+    window.dispatchEvent(new Event("nt:favorites-changed"))
   }
 
   return (
@@ -113,9 +190,21 @@ function ManualEntryForm({
           <Input id="fiber" type="number" value={fiber} onChange={(e) => setFiber(e.target.value)} />
         </div>
       </div>
-      <Button type="submit" className="w-full" size="lg" disabled={saving}>
-        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Guardar comida"}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1" size="lg" disabled={saving}>
+          {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Guardar comida"}
+        </Button>
+        <button
+          type="button"
+          onClick={toggleFav}
+          aria-label={fav ? "Quitar de favoritos" : "Marcar como favorito"}
+          className={`flex items-center justify-center w-12 h-12 rounded-md border ${
+            fav ? "bg-amber-100 border-amber-300 text-amber-600" : "border-border bg-secondary/60 text-muted-foreground"
+          }`}
+        >
+          <Star className={`h-5 w-5 ${fav ? "fill-amber-500" : ""}`} />
+        </button>
+      </div>
     </form>
   )
 }
@@ -172,6 +261,42 @@ export default function LogMealPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Favorites
+  const [favorites, setFavorites] = useState<Favorite[]>(() => loadFavorites())
+  useEffect(() => {
+    const handler = () => setFavorites(loadFavorites())
+    window.addEventListener("nt:favorites-changed", handler)
+    window.addEventListener("storage", handler)
+    return () => {
+      window.removeEventListener("nt:favorites-changed", handler)
+      window.removeEventListener("storage", handler)
+    }
+  }, [])
+
+  // Yesterday same-slot meal
+  const yesterdayRange = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    const day = d.toISOString().split("T")[0]
+    return { start: `${day}T00:00:00`, end: `${day}T23:59:59` }
+  }, [])
+  const { data: yesterdayLogs } = useQuery({
+    queryKey: ["yesterday-food-log", user?.id, yesterdayRange.start],
+    queryFn: async () => {
+      if (!user) return [] as Array<{ meal_name: string; meal_type: string }>
+      const { data, error } = await supabase
+        .from("food_log")
+        .select("meal_name, meal_type, logged_at")
+        .eq("user_id", user.id)
+        .gte("logged_at", yesterdayRange.start)
+        .lte("logged_at", yesterdayRange.end)
+        .order("logged_at", { ascending: false })
+      if (error) throw error
+      return (data ?? []) as Array<{ meal_name: string; meal_type: string }>
+    },
+    enabled: !!user,
+  })
 
   // Audio state
   const [isRecording, setIsRecording] = useState(false)
@@ -342,6 +467,44 @@ export default function LogMealPage() {
     }
   }
 
+  const quickLogFavorite = async (fav: Favorite) => {
+    try {
+      await createFoodLog.mutateAsync({
+        logged_at: new Date().toISOString(),
+        meal_type: currentMealSlot(),
+        input_method: "text",
+        raw_text: fav.name,
+        photo_url: null,
+        audio_url: null,
+        meal_name: fav.name,
+        description: null,
+        items: [],
+        calories: fav.kcal,
+        protein_g: fav.p,
+        carbs_g: fav.c,
+        fat_g: fav.g,
+        fiber_g: fav.fiber || null,
+        meal_plan_item_id: null,
+        ai_confidence: null,
+        ai_model: null,
+      })
+      toast.success("Añadido a tu registro")
+    } catch {
+      toast.error("Error al guardar")
+    }
+  }
+
+  const handleRepetirAyer = () => {
+    const slot = currentMealSlot()
+    const match = (yesterdayLogs || []).find((l) => l.meal_type === slot)
+    if (!match) {
+      toast.error("No hay comida de ayer en esta franja")
+      return
+    }
+    setTextInput(match.meal_name)
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
   const isAnalyzing = analyzeFood.isPending
 
   return (
@@ -435,6 +598,38 @@ export default function LogMealPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Favoritos */}
+      {favorites.length > 0 && (
+        <div className="pt-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">Favoritos</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {favorites.map((f) => (
+              <button
+                key={f.name}
+                type="button"
+                onClick={() => quickLogFavorite(f)}
+                className="shrink-0 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 px-3 min-h-[40px] text-sm font-medium flex items-center gap-1.5"
+              >
+                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                {f.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Repetir comida de ayer */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={handleRepetirAyer}
+          className="w-full min-h-[44px] rounded-xl border border-border bg-secondary/40 hover:bg-secondary px-3 text-sm font-medium flex items-center justify-center gap-2"
+        >
+          <History className="h-4 w-4" />
+          Repetir comida de ayer
+        </button>
       </div>
 
       {/* Recientes */}

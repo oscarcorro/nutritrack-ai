@@ -1,4 +1,14 @@
-import { useRef, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
+import { Switch } from "@/components/ui/switch"
+import {
+  loadNotificationPrefs,
+  saveNotificationPrefs,
+  initReminders,
+  cancelReminders,
+  requestNotificationPermission,
+  type NotificationPrefs,
+} from "@/lib/notifications"
+import { useTheme, type ThemeMode } from "@/hooks/use-theme"
 import { supabase } from "@/integrations/supabase/client"
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile"
 import { useCurrentGoal, useCreateGoal } from "@/hooks/use-goals"
@@ -258,6 +268,28 @@ export default function ProfilePage() {
     .join("")
     .toUpperCase()
 
+  // --- Notifications settings ---
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(() => loadNotificationPrefs())
+  useEffect(() => {
+    saveNotificationPrefs(notifPrefs)
+    if (notifPrefs.enabled) initReminders()
+    else cancelReminders()
+  }, [notifPrefs])
+
+  const handleToggleEnabled = async (next: boolean) => {
+    if (next) {
+      const perm = await requestNotificationPermission()
+      if (perm !== "granted") {
+        toast.error("Permiso denegado en el navegador")
+        return
+      }
+    }
+    setNotifPrefs((p) => ({ ...p, enabled: next }))
+  }
+
+  // --- Theme ---
+  const { theme, setTheme } = useTheme()
+
   const handleSignOut = async () => {
     await signOut()
     navigate("/auth", { replace: true })
@@ -443,6 +475,78 @@ export default function ProfilePage() {
         <HelpCircle className="h-5 w-5 mr-2" />
         Ver guia de la app
       </Button>
+
+      {/* Notifications settings */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Recordatorios</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Activar recordatorios</p>
+              <p className="text-xs text-muted-foreground">Avisos locales en este dispositivo</p>
+            </div>
+            <Switch
+              checked={notifPrefs.enabled}
+              onCheckedChange={handleToggleEnabled}
+              aria-label="Activar recordatorios"
+            />
+          </div>
+          <div className={`flex items-center justify-between ${!notifPrefs.enabled ? "opacity-50" : ""}`}>
+            <p className="text-sm">Comidas</p>
+            <Switch
+              checked={notifPrefs.meals}
+              disabled={!notifPrefs.enabled}
+              onCheckedChange={(v) => setNotifPrefs((p) => ({ ...p, meals: v }))}
+              aria-label="Recordatorios de comidas"
+            />
+          </div>
+          <div className={`flex items-center justify-between ${!notifPrefs.enabled ? "opacity-50" : ""}`}>
+            <p className="text-sm">Peso por la mañana</p>
+            <Switch
+              checked={notifPrefs.weighIn}
+              disabled={!notifPrefs.enabled}
+              onCheckedChange={(v) => setNotifPrefs((p) => ({ ...p, weighIn: v }))}
+              aria-label="Recordatorio de peso por la mañana"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Theme settings */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Tema</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-2">
+            {(["light", "dark", "system"] as ThemeMode[]).map((mode) => {
+              const labels: Record<ThemeMode, string> = {
+                light: "Claro",
+                dark: "Oscuro",
+                system: "Sistema",
+              }
+              const active = theme === mode
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setTheme(mode)}
+                  aria-pressed={active}
+                  className={`py-2.5 rounded-lg border text-sm font-semibold transition-all ${
+                    active
+                      ? "border-primary border-2 bg-accent text-primary"
+                      : "border-border hover:border-primary/50"
+                  }`}
+                >
+                  {labels[mode]}
+                </button>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tester-only admin controls */}
       <TesterControls />

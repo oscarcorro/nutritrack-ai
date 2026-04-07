@@ -1,7 +1,8 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect } from "react"
+import { initReminders } from "@/lib/notifications"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { AuthProvider } from "@/contexts/AuthContext"
+import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { MealPlanGenerationProvider } from "@/contexts/MealPlanGenerationContext"
 import { Toaster } from "@/components/ui/toaster"
 import { MobileLayout } from "@/components/layout/MobileLayout"
@@ -16,6 +17,7 @@ const LogMealPage = lazy(() => import("@/pages/LogMealPage"))
 const ProgressPage = lazy(() => import("@/pages/ProgressPage"))
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"))
 const AdminPage = lazy(() => import("@/pages/AdminPage"))
+const ShoppingListPage = lazy(() => import("@/pages/ShoppingListPage"))
 
 function PageSkeleton() {
   return (
@@ -41,11 +43,21 @@ const queryClient = new QueryClient({
   },
 })
 
+function RemindersBoot() {
+  const { loading } = useAuth()
+  useEffect(() => {
+    if (loading) return
+    initReminders()
+  }, [loading])
+  return null
+}
+
 function App() {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <RemindersBoot />
           <MealPlanGenerationProvider>
           <Suspense fallback={<PageSkeleton />}>
           <ErrorBoundary>
@@ -73,6 +85,7 @@ function App() {
             >
               <Route path="/inicio" element={<HomePage />} />
               <Route path="/plan" element={<MealPlanPage />} />
+              <Route path="/compra" element={<ShoppingListPage />} />
               <Route path="/registrar" element={<LogMealPage />} />
               <Route path="/progreso" element={<ProgressPage />} />
               <Route path="/perfil" element={<ProfilePage />} />
