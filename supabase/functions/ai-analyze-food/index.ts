@@ -34,7 +34,7 @@ Solo si NO hay match en la despensa:
 
 Si el alimento coincide con uno de la despensa del usuario, usa esos macros si los tiene; si no, hazlo por aproximación. En cada item devuelto, añade "source": "pantry" | "approximation" indicando el origen.
 
-Si el usuario registra un plato preparado con varios ingredientes (no un alimento único como "yogur natural"), añade además un campo opcional "recipe": { "ingredients": ["..."], "steps": ["..."] } con la receta breve. Omitelo para alimentos simples.
+Incluye SIEMPRE el campo "recipe" con { "ingredients": ["100 g arroz", "20 g jamon", ...], "steps": ["Paso 1...", "Paso 2..."] }. Lista TODOS los ingredientes con su cantidad tal como los describió el usuario o como aparezcan en el plato. Para alimentos únicos como "yogur natural" o "manzana", devuelve recipe con ese único ingrediente y steps vacío. NUNCA omitas recipe.
 
 Estructura:
 {

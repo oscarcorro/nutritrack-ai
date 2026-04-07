@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft } from "lucide-react"
-import { PantryScreen } from "@/components/pantry/PantryScreen"
+import { PantrySection } from "@/components/pantry/PantrySection"
 
 export default function PantryPage() {
   const navigate = useNavigate()
@@ -18,7 +18,7 @@ export default function PantryPage() {
         </Button>
         <h2 className="text-2xl font-bold">Despensa</h2>
       </div>
-      <PantryScreen />
+      <PantrySection />
     </div>
   )
 }

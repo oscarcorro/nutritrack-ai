@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
 import { useAnalyzeFood, useChatFood, type AnalyzedFood } from "@/hooks/use-ai"
 import { addRecipe, isRecipeSaved } from "@/lib/recipes"
-import { getPantryNames } from "@/components/pantry/PantryScreen"
+import { usePantry } from "@/hooks/use-pantry"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -313,6 +313,7 @@ export default function LogMealPage() {
   const createFoodLog = useCreateFoodLog()
   const analyzeFood = useAnalyzeFood()
   const chatFood = useChatFood()
+  const { data: pantry } = usePantry()
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -401,7 +402,14 @@ export default function LogMealPage() {
   ) => {
     pushMessage({ id: `a-${Date.now()}`, role: "assistant", kind: "analyzing" })
     try {
-      const pantry_items = getPantryNames().map((name) => ({ name }))
+      const pantry_items = (pantry ?? []).map((p) => ({
+        name: p.name,
+        calories_per_100g: p.calories_per_100g ?? undefined,
+        protein_g: p.protein_g_per_100g ?? undefined,
+        carbs_g: p.carbs_g_per_100g ?? undefined,
+        fat_g: p.fat_g_per_100g ?? undefined,
+        fiber_g: p.fiber_g_per_100g ?? undefined,
+      }))
       const result = await analyzeFood.mutateAsync({ ...input, pantry_items })
       setPendingResult(result)
       setPendingMethod(method)
