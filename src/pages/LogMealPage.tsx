@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
 import { useAnalyzeFood, useChatFood, type AnalyzedFood } from "@/hooks/use-ai"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { addRecipe, isRecipeSaved } from "@/lib/recipes"
 import { getPantryNames } from "@/components/pantry/PantryScreen"
 import { Button } from "@/components/ui/button"
@@ -14,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { MEAL_TYPE_LABELS } from "@/lib/nutrition"
 import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
-import { Mic, Loader2, MicOff, Paperclip, Send, Sparkles, Star, Package, Sigma, ChefHat, ChevronDown, ChevronUp, MessageCircle, Camera, Type } from "lucide-react"
+import { Mic, Loader2, MicOff, Send, Sparkles, Star, Package, Sigma, ChefHat, ChevronDown, ChevronUp, Camera } from "lucide-react"
 import { compressImage, compressDataUrl } from "@/lib/image"
 
 const FAVS_KEY = "nt:favorites:v1"
@@ -74,8 +73,6 @@ type ChatMessage =
   | { id: string; role: "assistant"; kind: "saved"; mealName: string }
   | { id: string; role: "assistant"; kind: "text"; text: string }
   | { id: string; role: "assistant"; kind: "thinking" }
-
-type InputTab = "chat" | "photo" | "audio" | "text"
 
 function ManualEntryForm({
   onSave,
@@ -316,7 +313,6 @@ export default function LogMealPage() {
   const createFoodLog = useCreateFoodLog()
   const analyzeFood = useAnalyzeFood()
   const chatFood = useChatFood()
-  const [activeTab, setActiveTab] = useState<InputTab>("chat")
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -466,13 +462,7 @@ export default function LogMealPage() {
   const handleSendText = async () => {
     const text = textInput.trim()
     if (!text) return
-    if (activeTab === "chat") {
-      await handleSendChat()
-      return
-    }
-    setTextInput("")
-    pushMessage({ id: `u-${Date.now()}`, role: "user", kind: "text", text })
-    await runAnalyze({ text }, "text", text)
+    await handleSendChat()
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -597,44 +587,9 @@ export default function LogMealPage() {
 
   const isAnalyzing = analyzeFood.isPending || chatFood.isPending
 
-  const handleTabChange = (val: string) => {
-    const tab = val as InputTab
-    setActiveTab(tab)
-    if (tab === "photo") {
-      setTimeout(() => fileInputRef.current?.click(), 50)
-    } else if (tab === "audio") {
-      setTimeout(() => {
-        if (!isRecording) startRecording()
-      }, 50)
-    } else if (tab === "text" || tab === "chat") {
-      setTimeout(() => textareaRef.current?.focus(), 50)
-    }
-  }
-
   return (
     <div className="flex flex-col h-[calc(100svh-9rem)]">
       <h2 className="text-2xl font-bold mb-3">Registrar comida</h2>
-
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-3">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="chat" className="gap-1.5">
-            <MessageCircle className="h-4 w-4" />
-            <span>Chat</span>
-          </TabsTrigger>
-          <TabsTrigger value="photo" className="gap-1.5">
-            <Camera className="h-4 w-4" />
-            <span>Foto</span>
-          </TabsTrigger>
-          <TabsTrigger value="audio" className="gap-1.5">
-            <Mic className="h-4 w-4" />
-            <span>Audio</span>
-          </TabsTrigger>
-          <TabsTrigger value="text" className="gap-1.5">
-            <Type className="h-4 w-4" />
-            <span>Texto</span>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       {/* Chat scroll area */}
       <div
@@ -648,7 +603,7 @@ export default function LogMealPage() {
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 text-base max-w-[85%]">
-            Cuéntame qué has comido. Puedes chatear conmigo, hacerle una foto, dictarlo por voz o escribirlo directamente.
+            Cuéntame qué has comido. Puedes escribirlo, hacerle una foto o dictarlo por voz.
           </div>
         </div>
 
@@ -759,24 +714,15 @@ export default function LogMealPage() {
       )}
 
       {/* Composer */}
-      <div className="sticky bottom-0 bg-background pt-2">
+      <div className="sticky bottom-0 bg-background pt-2 pb-[env(safe-area-inset-bottom)]">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
         <div className="flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isAnalyzing}
-            className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-secondary text-muted-foreground shrink-0"
-            aria-label="Adjuntar foto"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
           <textarea
             ref={textareaRef}
             value={textInput}
@@ -787,19 +733,28 @@ export default function LogMealPage() {
                 handleSendText()
               }
             }}
-            placeholder={activeTab === "chat" ? "Habla con el asistente..." : "Escribe lo que has comido..."}
+            placeholder="Cuéntame qué has comido..."
             rows={1}
             disabled={isAnalyzing}
-            className="flex-1 resize-none bg-transparent outline-none text-base py-2 min-h-[44px] max-h-[140px] placeholder:text-muted-foreground"
+            className="flex-1 resize-none bg-transparent outline-none text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground"
           />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isAnalyzing}
+            className="flex items-center justify-center w-12 h-12 rounded-full hover:bg-secondary text-muted-foreground shrink-0"
+            aria-label="Adjuntar foto"
+          >
+            <Camera className="h-5 w-5" />
+          </button>
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isAnalyzing}
-            className={`flex items-center justify-center w-11 h-11 rounded-full shrink-0 ${
+            className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
               isRecording ? "bg-destructive text-destructive-foreground" : "hover:bg-secondary text-muted-foreground"
             }`}
-            aria-label={isRecording ? "Detener grabacion" : "Grabar audio"}
+            aria-label={isRecording ? "Detener grabación" : "Grabar audio"}
           >
             {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
           </button>
@@ -807,7 +762,7 @@ export default function LogMealPage() {
             type="button"
             onClick={handleSendText}
             disabled={isAnalyzing || !textInput.trim()}
-            className="flex items-center justify-center w-11 h-11 rounded-full bg-primary text-primary-foreground shrink-0 disabled:opacity-40"
+            className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground shrink-0 disabled:opacity-40"
             aria-label="Enviar"
           >
             {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}

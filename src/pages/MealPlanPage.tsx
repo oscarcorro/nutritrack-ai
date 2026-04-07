@@ -11,7 +11,18 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart, Trash2, Bookmark } from "lucide-react"
+import { addRecipe } from "@/lib/recipes"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import type { MealType } from "@/integrations/supabase/types"
 import { format, addDays, subDays, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
@@ -41,15 +52,30 @@ function MealCard({
   const [logging, setLogging] = useState(false)
   const [swapping, setSwapping] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const handleDelete = async () => {
-    if (!window.confirm(`¿Eliminar "${item.meal_name}" del plan?`)) return
+  const handleConfirmDelete = async () => {
+    setConfirmOpen(false)
     setDeleting(true)
     try {
       await onDelete(item)
     } finally {
       setDeleting(false)
     }
+  }
+
+  const handleSaveAsRecipe = () => {
+    const ings = Array.isArray(item.ingredients)
+      ? (item.ingredients as Array<{ name: string; quantity_g?: number }>)
+          .map((i) => (i.quantity_g ? `${i.name} (${i.quantity_g} g)` : i.name))
+      : []
+    addRecipe({
+      name: item.meal_name,
+      ingredients: ings,
+      steps: [],
+      kcal: Math.round(item.calories ?? 0),
+    })
+    toast.success("Guardado en Mis recetas")
   }
 
   const handleLog = async () => {
@@ -82,7 +108,15 @@ function MealCard({
             <Badge variant="secondary">{item.calories ? formatCalories(item.calories) : "--"}</Badge>
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={handleSaveAsRecipe}
+              aria-label="Guardar como receta"
+              className="flex items-center justify-center w-12 h-12 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10"
+            >
+              <Bookmark className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
               disabled={deleting}
               aria-label="Eliminar comida"
               className="flex items-center justify-center w-12 h-12 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
@@ -91,6 +125,23 @@ function MealCard({
             </button>
           </div>
         </div>
+
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminar comida</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción quitará la comida del plan de hoy. Podrás deshacerla.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={handleConfirmDelete}>
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Macros */}
         <div className="flex gap-2">
@@ -431,30 +482,60 @@ export default function MealPlanPage() {
           {todayLog && todayLog.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Ya registrado hoy</p>
-              {todayLog.map((l) => (
-                <Card key={l.id} className="bg-secondary border-border">
-                  <CardContent className="p-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditingLog(l)}
-                      className="w-full flex items-center justify-between gap-2 text-left"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium flex items-center gap-1 text-foreground">
-                          <Check className="h-4 w-4 text-primary" />
-                          {l.meal_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {l.calories ?? 0} kcal · P {l.protein_g ?? 0}g · C {l.carbs_g ?? 0}g · G {l.fat_g ?? 0}g
-                        </p>
+              {todayLog.map((l) => {
+                const saveLogAsRecipe = () => {
+                  const ings = Array.isArray(l.items)
+                    ? (l.items as Array<{ name?: string; quantity_g?: number } | string>).map((i) =>
+                        typeof i === "string"
+                          ? i
+                          : i.quantity_g
+                            ? `${i.name ?? ""} (${i.quantity_g} g)`
+                            : (i.name ?? ""),
+                      ).filter(Boolean)
+                    : []
+                  addRecipe({
+                    name: l.meal_name,
+                    ingredients: ings,
+                    steps: [],
+                    kcal: Math.round(l.calories ?? 0),
+                  })
+                  toast.success("Guardado en Mis recetas")
+                }
+                return (
+                  <Card key={l.id} className="bg-secondary border-border">
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingLog(l)}
+                          className="flex-1 flex items-center justify-between gap-2 text-left"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium flex items-center gap-1 text-foreground">
+                              <Check className="h-4 w-4 text-primary" />
+                              {l.meal_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {l.calories ?? 0} kcal · P {l.protein_g ?? 0}g · C {l.carbs_g ?? 0}g · G {l.fat_g ?? 0}g
+                            </p>
+                          </div>
+                          {l.meal_type && (
+                            <Badge variant="outline" className="text-xs">{MEAL_TYPE_LABELS[l.meal_type]}</Badge>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={saveLogAsRecipe}
+                          aria-label="Guardar como receta"
+                          className="flex items-center justify-center w-12 h-12 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
+                        >
+                          <Bookmark className="h-4 w-4" />
+                        </button>
                       </div>
-                      {l.meal_type && (
-                        <Badge variant="outline" className="text-xs">{MEAL_TYPE_LABELS[l.meal_type]}</Badge>
-                      )}
-                    </button>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
 
