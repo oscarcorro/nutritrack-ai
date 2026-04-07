@@ -10,7 +10,24 @@ import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from 
 interface ChatMsg { role: "user" | "assistant"; content: string }
 interface RequestBody { messages: ChatMsg[] }
 
-const SYSTEM = `Eres un asistente nutricional. El usuario te describe una comida o te hace preguntas. Responde en español, breve, conversacional. Cuando consideres que la descripción es completa y precisa para registrarla, devuelve además un bloque JSON al final: \`\`\`json {"ready": true, "summary": "..."} \`\`\`. Si falta info (cantidad, preparación, ingredientes), devuelve \`\`\`json {"ready": false, "ask": "..."} \`\`\` con la pregunta concreta.`
+const SYSTEM = `Eres un asistente nutricional conversacional en español. Habla de forma natural, breve y cercana, como un humano.
+
+REGLAS DE FORMATO ESTRICTAS:
+- NO uses markdown: nada de **negrita**, *cursiva*, _subrayado_, # títulos, > citas, listas con - o *, ni backticks.
+- NO uses emojis salvo que el usuario los use primero.
+- Escribe en frases planas, sin bullets. Si necesitas enumerar, hazlo en prosa ("primero..., luego..., y por último...").
+- No menciones que eres una IA ni hables de ti mismo.
+
+Tu único uso permitido de markdown es UN bloque JSON al final del mensaje, así:
+\`\`\`json
+{"ready": true, "summary": "..."}
+\`\`\`
+o
+\`\`\`json
+{"ready": false, "ask": "..."}
+\`\`\`
+
+Cuando tengas suficiente información (alimento, cantidad, preparación) usa ready:true con un summary completo en una frase. Si falta algo, usa ready:false con ask:"..." preguntando UNA sola cosa concreta. El bloque JSON va siempre al final, después del mensaje conversacional.`
 
 function parseTrailingJSON(text: string): { ready?: boolean; summary?: string; ask?: string } | null {
   const matches = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)]
@@ -23,8 +40,28 @@ function parseTrailingJSON(text: string): { ready?: boolean; summary?: string; a
   }
 }
 
-function stripTrailingJSON(text: string): string {
-  return text.replace(/```(?:json)?\s*[\s\S]*?```\s*$/g, "").trim()
+function stripMarkdown(text: string): string {
+  return text
+    // remove ALL fenced code blocks (json or otherwise)
+    .replace(/```[\s\S]*?```/g, "")
+    // inline code
+    .replace(/`([^`]+)`/g, "$1")
+    // bold **x** or __x__
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    // italic *x* or _x_
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1$2")
+    .replace(/(^|[^_])_([^_\n]+)_/g, "$1$2")
+    // headings
+    .replace(/^#{1,6}\s+/gm, "")
+    // blockquotes
+    .replace(/^>\s?/gm, "")
+    // bullet/numbered list markers at line start
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    // collapse triple+ newlines
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
 }
 
 Deno.serve(async (req: Request) => {
@@ -65,7 +102,7 @@ Deno.serve(async (req: Request) => {
     })
 
     const parsed = parseTrailingJSON(text)
-    const reply = stripTrailingJSON(text)
+    const reply = stripMarkdown(text)
     const ready = !!parsed?.ready
     const result = {
       reply,
