@@ -42,7 +42,7 @@ import { useNavigate } from "react-router-dom"
 import { PantrySection } from "@/components/pantry/PantrySection"
 import { TesterControls } from "@/components/admin/TesterControls"
 import { openGuidedTour } from "@/components/onboarding/GuidedTour"
-import { HelpCircle } from "lucide-react"
+import { HelpCircle, ChefHat } from "lucide-react"
 
 const GOAL_LABELS: Record<GoalType, string> = {
   lose_weight: "Perder grasa",
@@ -469,6 +469,12 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* My recipes */}
+      <Button variant="outline" size="lg" className="w-full" onClick={() => navigate("/recetas")}>
+        <ChefHat className="h-5 w-5 mr-2" />
+        Mis recetas
+      </Button>
 
       {/* App tour */}
       <Button variant="outline" size="lg" className="w-full" onClick={() => openGuidedTour()}>

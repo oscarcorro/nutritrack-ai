@@ -18,6 +18,7 @@ const ProgressPage = lazy(() => import("@/pages/ProgressPage"))
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"))
 const AdminPage = lazy(() => import("@/pages/AdminPage"))
 const ShoppingListPage = lazy(() => import("@/pages/ShoppingListPage"))
+const RecipesPage = lazy(() => import("@/pages/RecipesPage"))
 
 function PageSkeleton() {
   return (
@@ -89,6 +90,7 @@ function App() {
               <Route path="/registrar" element={<LogMealPage />} />
               <Route path="/progreso" element={<ProgressPage />} />
               <Route path="/perfil" element={<ProfilePage />} />
+              <Route path="/recetas" element={<RecipesPage />} />
               <Route path="/admin" element={<AdminPage />} />
             </Route>
 

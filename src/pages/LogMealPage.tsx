@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
-import { useQuery } from "@tanstack/react-query"
-import { supabase } from "@/integrations/supabase/client"
-import { useAuth } from "@/contexts/AuthContext"
-import { useAnalyzeFood, type AnalyzedFood } from "@/hooks/use-ai"
+import { useAnalyzeFood, useChatFood, type AnalyzedFood } from "@/hooks/use-ai"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { addRecipe, isRecipeSaved } from "@/lib/recipes"
+import { getPantryNames } from "@/components/pantry/PantryScreen"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { MEAL_TYPE_LABELS } from "@/lib/nutrition"
 import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
-import { Mic, Loader2, MicOff, Paperclip, Send, Sparkles, Star, History } from "lucide-react"
+import { Mic, Loader2, MicOff, Paperclip, Send, Sparkles, Star, Package, Sigma, ChefHat, ChevronDown, ChevronUp, MessageCircle, Camera, Type } from "lucide-react"
 import { compressImage, compressDataUrl } from "@/lib/image"
 
 const FAVS_KEY = "nt:favorites:v1"
@@ -72,6 +72,10 @@ type ChatMessage =
   | { id: string; role: "assistant"; kind: "result"; result: AnalyzedFood }
   | { id: string; role: "assistant"; kind: "error"; text: string }
   | { id: string; role: "assistant"; kind: "saved"; mealName: string }
+  | { id: string; role: "assistant"; kind: "text"; text: string }
+  | { id: string; role: "assistant"; kind: "thinking" }
+
+type InputTab = "chat" | "photo" | "audio" | "text"
 
 function ManualEntryForm({
   onSave,
@@ -209,40 +213,111 @@ function ManualEntryForm({
   )
 }
 
+function SourceBadges({ items }: { items: AnalyzedFood["items"] }) {
+  if (!items || items.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {items.map((it, idx) => {
+        const isPantry = it.source === "pantry"
+        return (
+          <span
+            key={idx}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+              isPantry
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-secondary text-muted-foreground border border-border"
+            }`}
+            title={isPantry ? "Macros de la despensa" : "Macros aproximados"}
+          >
+            {isPantry ? <Package className="h-3 w-3" /> : <Sigma className="h-3 w-3" />}
+            <span className="truncate max-w-[120px]">{it.name}</span>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function RecipeSection({ result }: { result: AnalyzedFood }) {
+  const [open, setOpen] = useState(false)
+  const [saved, setSaved] = useState(() => isRecipeSaved(result.meal_name))
+  if (!result.recipe || (result.recipe.ingredients.length === 0 && result.recipe.steps.length === 0)) {
+    return null
+  }
+  const handleSave = () => {
+    if (saved) {
+      toast.info("Ya está guardada en tus recetas")
+      return
+    }
+    addRecipe({
+      name: result.meal_name,
+      ingredients: result.recipe!.ingredients,
+      steps: result.recipe!.steps,
+      kcal: Math.round(result.calories),
+    })
+    setSaved(true)
+    toast.success("Receta guardada en Mis recetas")
+  }
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-secondary/30">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold"
+      >
+        <span className="flex items-center gap-2">
+          <ChefHat className="h-4 w-4 text-primary" />
+          Receta
+        </span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-2 text-sm">
+          {result.recipe.ingredients.length > 0 && (
+            <div>
+              <p className="font-semibold mb-1">Ingredientes</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                {result.recipe.ingredients.map((i, idx) => (
+                  <li key={idx}>{i}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.recipe.steps.length > 0 && (
+            <div>
+              <p className="font-semibold mb-1">Pasos</p>
+              <ol className="list-decimal list-inside space-y-1">
+                {result.recipe.steps.map((s, idx) => (
+                  <li key={idx}>{s}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+          <Button
+            type="button"
+            variant={saved ? "secondary" : "outline"}
+            size="sm"
+            className="w-full"
+            onClick={handleSave}
+            disabled={saved}
+          >
+            <Star className={`h-4 w-4 mr-2 ${saved ? "fill-amber-500 text-amber-500" : ""}`} />
+            {saved ? "Guardada en mis recetas" : "Guardar en mis recetas"}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function LogMealPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
   const createFoodLog = useCreateFoodLog()
-
-  // Recent distinct meals (last 5)
-  const { data: recentMeals } = useQuery({
-    queryKey: ["recent-food-log", user?.id],
-    queryFn: async () => {
-      if (!user) return [] as string[]
-      const { data, error } = await supabase
-        .from("food_log")
-        .select("meal_name, logged_at")
-        .eq("user_id", user.id)
-        .order("logged_at", { ascending: false })
-        .limit(30)
-      if (error) throw error
-      const seen = new Set<string>()
-      const out: string[] = []
-      for (const row of (data ?? []) as Array<{ meal_name: string }>) {
-        const name = (row.meal_name || "").trim()
-        if (!name) continue
-        const key = name.toLowerCase()
-        if (seen.has(key)) continue
-        seen.add(key)
-        out.push(name)
-        if (out.length >= 5) break
-      }
-      return out
-    },
-    enabled: !!user,
-  })
   const analyzeFood = useAnalyzeFood()
+  const chatFood = useChatFood()
+  const [activeTab, setActiveTab] = useState<InputTab>("chat")
+  const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -273,30 +348,6 @@ export default function LogMealPage() {
       window.removeEventListener("storage", handler)
     }
   }, [])
-
-  // Yesterday same-slot meal
-  const yesterdayRange = useMemo(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 1)
-    const day = d.toISOString().split("T")[0]
-    return { start: `${day}T00:00:00`, end: `${day}T23:59:59` }
-  }, [])
-  const { data: yesterdayLogs } = useQuery({
-    queryKey: ["yesterday-food-log", user?.id, yesterdayRange.start],
-    queryFn: async () => {
-      if (!user) return [] as Array<{ meal_name: string; meal_type: string }>
-      const { data, error } = await supabase
-        .from("food_log")
-        .select("meal_name, meal_type, logged_at")
-        .eq("user_id", user.id)
-        .gte("logged_at", yesterdayRange.start)
-        .lte("logged_at", yesterdayRange.end)
-        .order("logged_at", { ascending: false })
-      if (error) throw error
-      return (data ?? []) as Array<{ meal_name: string; meal_type: string }>
-    },
-    enabled: !!user,
-  })
 
   // Audio state
   const [isRecording, setIsRecording] = useState(false)
@@ -354,7 +405,8 @@ export default function LogMealPage() {
   ) => {
     pushMessage({ id: `a-${Date.now()}`, role: "assistant", kind: "analyzing" })
     try {
-      const result = await analyzeFood.mutateAsync(input)
+      const pantry_items = getPantryNames().map((name) => ({ name }))
+      const result = await analyzeFood.mutateAsync({ ...input, pantry_items })
       setPendingResult(result)
       setPendingMethod(method)
       setPendingRawText(rawText)
@@ -366,9 +418,58 @@ export default function LogMealPage() {
     }
   }
 
+  const replaceLastThinking = (m: ChatMessage) =>
+    setMessages((prev) => {
+      const idx = [...prev].reverse().findIndex((x) => x.kind === "thinking")
+      if (idx === -1) return [...prev, m]
+      const realIdx = prev.length - 1 - idx
+      const next = prev.slice()
+      next[realIdx] = m
+      return next
+    })
+
+  const handleSendChat = async () => {
+    const text = textInput.trim()
+    if (!text) return
+    setTextInput("")
+    pushMessage({ id: `u-${Date.now()}`, role: "user", kind: "text", text })
+    const nextHistory = [...chatHistory, { role: "user" as const, content: text }]
+    setChatHistory(nextHistory)
+    pushMessage({ id: `t-${Date.now()}`, role: "assistant", kind: "thinking" })
+    try {
+      const reply = await chatFood.mutateAsync({ messages: nextHistory })
+      const assistantContent = reply.reply || (reply.ask ?? "")
+      setChatHistory([...nextHistory, { role: "assistant", content: assistantContent }])
+      if (reply.ready && reply.summary) {
+        replaceLastThinking({
+          id: `tx-${Date.now()}`,
+          role: "assistant",
+          kind: "text",
+          text: assistantContent || "Perfecto, lo registro.",
+        })
+        await runAnalyze({ text: reply.summary }, "text", reply.summary)
+      } else {
+        replaceLastThinking({
+          id: `tx-${Date.now()}`,
+          role: "assistant",
+          kind: "text",
+          text: assistantContent || reply.ask || "¿Puedes darme más detalle?",
+        })
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Error en el chat"
+      replaceLastThinking({ id: `e-${Date.now()}`, role: "assistant", kind: "error", text: msg })
+      toast.error(msg)
+    }
+  }
+
   const handleSendText = async () => {
     const text = textInput.trim()
     if (!text) return
+    if (activeTab === "chat") {
+      await handleSendChat()
+      return
+    }
     setTextInput("")
     pushMessage({ id: `u-${Date.now()}`, role: "user", kind: "text", text })
     await runAnalyze({ text }, "text", text)
@@ -494,22 +595,46 @@ export default function LogMealPage() {
     }
   }
 
-  const handleRepetirAyer = () => {
-    const slot = currentMealSlot()
-    const match = (yesterdayLogs || []).find((l) => l.meal_type === slot)
-    if (!match) {
-      toast.error("No hay comida de ayer en esta franja")
-      return
-    }
-    setTextInput(match.meal_name)
-    setTimeout(() => textareaRef.current?.focus(), 0)
-  }
+  const isAnalyzing = analyzeFood.isPending || chatFood.isPending
 
-  const isAnalyzing = analyzeFood.isPending
+  const handleTabChange = (val: string) => {
+    const tab = val as InputTab
+    setActiveTab(tab)
+    if (tab === "photo") {
+      setTimeout(() => fileInputRef.current?.click(), 50)
+    } else if (tab === "audio") {
+      setTimeout(() => {
+        if (!isRecording) startRecording()
+      }, 50)
+    } else if (tab === "text" || tab === "chat") {
+      setTimeout(() => textareaRef.current?.focus(), 50)
+    }
+  }
 
   return (
     <div className="flex flex-col h-[calc(100svh-9rem)]">
       <h2 className="text-2xl font-bold mb-3">Registrar comida</h2>
+
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-3">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="chat" className="gap-1.5">
+            <MessageCircle className="h-4 w-4" />
+            <span>Chat</span>
+          </TabsTrigger>
+          <TabsTrigger value="photo" className="gap-1.5">
+            <Camera className="h-4 w-4" />
+            <span>Foto</span>
+          </TabsTrigger>
+          <TabsTrigger value="audio" className="gap-1.5">
+            <Mic className="h-4 w-4" />
+            <span>Audio</span>
+          </TabsTrigger>
+          <TabsTrigger value="text" className="gap-1.5">
+            <Type className="h-4 w-4" />
+            <span>Texto</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Chat scroll area */}
       <div
@@ -523,7 +648,7 @@ export default function LogMealPage() {
             <Sparkles className="h-4 w-4 text-primary" />
           </div>
           <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 text-base max-w-[85%]">
-            Cuentame que has comido. Puedes escribirlo, hacerle una foto o dictarlo por voz.
+            Cuéntame qué has comido. Puedes chatear conmigo, hacerle una foto, dictarlo por voz o escribirlo directamente.
           </div>
         </div>
 
@@ -575,6 +700,17 @@ export default function LogMealPage() {
                     </Card>
                   </div>
                 )}
+                {m.kind === "thinking" && (
+                  <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-base">Pensando...</span>
+                  </div>
+                )}
+                {m.kind === "text" && (
+                  <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 text-base whitespace-pre-wrap">
+                    {m.text}
+                  </div>
+                )}
                 {m.kind === "error" && (
                   <div className="rounded-2xl rounded-tl-sm bg-destructive/10 text-destructive px-3 py-2 text-sm">
                     {m.text}
@@ -586,11 +722,13 @@ export default function LogMealPage() {
                       <p className="text-sm text-muted-foreground mb-1">
                         Revisa y ajusta antes de guardar.
                       </p>
+                      <SourceBadges items={m.result.items} />
                       <ManualEntryForm
                         onSave={handleSave}
                         saving={saving}
                         initial={m.result}
                       />
+                      <RecipeSection result={m.result} />
                     </CardContent>
                   </Card>
                 )}
@@ -620,40 +758,6 @@ export default function LogMealPage() {
         </div>
       )}
 
-      {/* Repetir comida de ayer */}
-      <div className="pt-2">
-        <button
-          type="button"
-          onClick={handleRepetirAyer}
-          className="w-full min-h-[44px] rounded-xl border border-border bg-secondary/40 hover:bg-secondary px-3 text-sm font-medium flex items-center justify-center gap-2"
-        >
-          <History className="h-4 w-4" />
-          Repetir comida de ayer
-        </button>
-      </div>
-
-      {/* Recientes */}
-      {recentMeals && recentMeals.length > 0 && (
-        <div className="pt-2">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">Recientes</p>
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {recentMeals.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => {
-                  setTextInput(name)
-                  setTimeout(() => textareaRef.current?.focus(), 0)
-                }}
-                className="shrink-0 rounded-full border border-border bg-secondary/60 hover:bg-secondary px-3 min-h-[40px] text-sm font-medium"
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Composer */}
       <div className="sticky bottom-0 bg-background pt-2">
         <div className="flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
@@ -670,7 +774,6 @@ export default function LogMealPage() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="hidden"
             onChange={handleFileSelect}
           />
@@ -684,7 +787,7 @@ export default function LogMealPage() {
                 handleSendText()
               }
             }}
-            placeholder="Escribe lo que has comido..."
+            placeholder={activeTab === "chat" ? "Habla con el asistente..." : "Escribe lo que has comido..."}
             rows={1}
             disabled={isAnalyzing}
             className="flex-1 resize-none bg-transparent outline-none text-base py-2 min-h-[44px] max-h-[140px] placeholder:text-muted-foreground"

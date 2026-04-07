@@ -2,16 +2,36 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 
+export interface AnalyzedFoodItem {
+  name: string
+  quantity_g: number
+  source?: "pantry" | "approximation"
+}
+
+export interface FoodRecipe {
+  ingredients: string[]
+  steps: string[]
+}
+
 export interface AnalyzedFood {
   meal_name: string
   description: string
-  items: { name: string; quantity_g: number }[]
+  items: AnalyzedFoodItem[]
   calories: number
   protein_g: number
   carbs_g: number
   fat_g: number
   fiber_g: number
   confidence: number
+  model: string
+  recipe?: FoodRecipe
+}
+
+export interface ChatFoodReply {
+  reply: string
+  ready: boolean
+  summary?: string
+  ask?: string
   model: string
 }
 
@@ -37,8 +57,20 @@ async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T
 
 export function useAnalyzeFood() {
   return useMutation({
-    mutationFn: (input: { text?: string; transcript?: string; image_base64?: string; media_type?: string }) =>
-      invoke<AnalyzedFood>('ai-analyze-food', input),
+    mutationFn: (input: {
+      text?: string
+      transcript?: string
+      image_base64?: string
+      media_type?: string
+      pantry_items?: { name: string }[]
+    }) => invoke<AnalyzedFood>('ai-analyze-food', input),
+  })
+}
+
+export function useChatFood() {
+  return useMutation({
+    mutationFn: (input: { messages: { role: 'user' | 'assistant'; content: string }[] }) =>
+      invoke<ChatFoodReply>('ai-chat-food', input),
   })
 }
 

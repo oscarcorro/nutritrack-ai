@@ -6,11 +6,21 @@ import { corsHeaders } from "../_shared/cors.ts"
 import { callAnthropic, extractJSON, AnthropicContentBlock } from "../_shared/anthropic.ts"
 import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from "../_shared/supabase.ts"
 
+interface PantryItemInput {
+  name: string
+  calories_per_100g?: number
+  protein_g?: number
+  carbs_g?: number
+  fat_g?: number
+  fiber_g?: number
+}
+
 interface RequestBody {
   text?: string
   transcript?: string
   image_base64?: string
   media_type?: string
+  pantry_items?: PantryItemInput[]
 }
 
 const SYSTEM = `Eres un nutricionista experto. Analiza lo que ha comido el usuario y devuelve SOLO JSON valido.
@@ -22,17 +32,22 @@ Solo si NO hay match en la despensa:
 - Para marcas conocidas, usa tu conocimiento de las etiquetas tipicas.
 - Para alimentos genericos, estima con conocimiento nutricional estandar.
 
+Si el alimento coincide con uno de la despensa del usuario, usa esos macros si los tiene; si no, hazlo por aproximación. En cada item devuelto, añade "source": "pantry" | "approximation" indicando el origen.
+
+Si el usuario registra un plato preparado con varios ingredientes (no un alimento único como "yogur natural"), añade además un campo opcional "recipe": { "ingredients": ["..."], "steps": ["..."] } con la receta breve. Omitelo para alimentos simples.
+
 Estructura:
 {
   "meal_name": "nombre corto del plato",
   "description": "descripcion breve",
-  "items": [{"name": "ingrediente", "quantity_g": 150}],
+  "items": [{"name": "ingrediente", "quantity_g": 150, "source": "pantry"}],
   "calories": 450,
   "protein_g": 30,
   "carbs_g": 40,
   "fat_g": 15,
   "fiber_g": 5,
-  "confidence": 0.85
+  "confidence": 0.85,
+  "recipe": { "ingredients": ["..."], "steps": ["..."] }
 }
 Calorias y macros en numeros (no strings). Confidence entre 0 y 1. Considera el perfil del usuario para mejor estimacion.
 
@@ -73,9 +88,23 @@ Deno.serve(async (req: Request) => {
         },
       })
     }
+    let pantryBlock = ""
+    if (Array.isArray(body.pantry_items) && body.pantry_items.length > 0) {
+      const lines = body.pantry_items.map((p) => {
+        const macros: string[] = []
+        if (typeof p.calories_per_100g === "number") macros.push(`${p.calories_per_100g} kcal/100g`)
+        if (typeof p.protein_g === "number") macros.push(`P ${p.protein_g}`)
+        if (typeof p.carbs_g === "number") macros.push(`C ${p.carbs_g}`)
+        if (typeof p.fat_g === "number") macros.push(`G ${p.fat_g}`)
+        if (typeof p.fiber_g === "number") macros.push(`F ${p.fiber_g}`)
+        return macros.length > 0 ? `- ${p.name} (${macros.join(", ")})` : `- ${p.name}`
+      }).join("\n")
+      pantryBlock = `\n\nDESPENSA DEL USUARIO (lista actual):\n${lines}\n`
+    }
+
     content.push({
       type: "text",
-      text: `${userContextPrompt}\n\nENTRADA DEL USUARIO:\n${
+      text: `${userContextPrompt}${pantryBlock}\n\nENTRADA DEL USUARIO:\n${
         hasImage ? "Foto del plato adjunta." : userText
       }\n\nAnaliza el plato y devuelve el JSON.`,
     })

@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart, Trash2 } from "lucide-react"
 import type { MealType } from "@/integrations/supabase/types"
 import { format, addDays, subDays, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
@@ -22,19 +22,35 @@ import { PantryScreen } from "@/components/pantry/PantryScreen"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Link } from "react-router-dom"
+import { supabase } from "@/integrations/supabase/client"
+import { useQueryClient } from "@tanstack/react-query"
+import { useAuth } from "@/contexts/AuthContext"
 
 function MealCard({
   item,
   onLog,
   onSwap,
+  onDelete,
 }: {
   item: MealPlanItem
   onLog: (item: MealPlanItem) => void
   onSwap: (item: MealPlanItem) => Promise<void>
+  onDelete: (item: MealPlanItem) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(false)
   const [logging, setLogging] = useState(false)
   const [swapping, setSwapping] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!window.confirm(`¿Eliminar "${item.meal_name}" del plan?`)) return
+    setDeleting(true)
+    try {
+      await onDelete(item)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const handleLog = async () => {
     setLogging(true)
@@ -62,7 +78,18 @@ function MealCard({
             </div>
             <p className="text-lg font-semibold">{item.meal_name}</p>
           </div>
-          <Badge variant="secondary">{item.calories ? formatCalories(item.calories) : "--"}</Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary">{item.calories ? formatCalories(item.calories) : "--"}</Badge>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              aria-label="Eliminar comida"
+              className="flex items-center justify-center w-12 h-12 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
         {/* Macros */}
@@ -127,6 +154,8 @@ function MealCard({
 export default function MealPlanPage() {
   const [date, setDate] = useState(new Date())
   const dateStr = format(date, "yyyy-MM-dd")
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
   const { data: plan, isLoading } = useMealPlan(dateStr)
   const { data: todayLog } = useFoodLog(`${dateStr}T00:00:00`, `${dateStr}T23:59:59`)
   const createFoodLog = useCreateFoodLog()
@@ -173,6 +202,37 @@ export default function MealPlanPage() {
       daily_activities: activities || undefined,
       preferences: preferences || undefined,
     })
+  }
+
+  const handleDeleteItem = async (item: MealPlanItem) => {
+    const snapshot = { ...item }
+    try {
+      const { error } = await supabase
+        .from("meal_plan_items")
+        .delete()
+        .eq("id", item.id)
+      if (error) throw error
+      queryClient.invalidateQueries({ queryKey: ["meal-plan", user?.id, dateStr] })
+      toast.success("Comida eliminada del plan", {
+        action: {
+          label: "Deshacer",
+          onClick: async () => {
+            try {
+              const { error: insErr } = await supabase
+                .from("meal_plan_items")
+                .insert(snapshot as never)
+              if (insErr) throw insErr
+              queryClient.invalidateQueries({ queryKey: ["meal-plan", user?.id, dateStr] })
+              toast.success("Comida restaurada")
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "No se pudo restaurar")
+            }
+          },
+        },
+      })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al eliminar")
+    }
   }
 
   const handleSwap = async (item: MealPlanItem) => {
@@ -342,7 +402,7 @@ export default function MealPlanPage() {
       ) : !plan ? (
         <div className="space-y-3">
           {todayLog && todayLog.length > 0 && (
-            <Card className="bg-green-50 border-green-200">
+            <Card className="bg-secondary border-border">
               <CardContent className="p-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">Ya registrado hoy</p>
                 {todayLog.map((l) => (
@@ -372,7 +432,7 @@ export default function MealPlanPage() {
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Ya registrado hoy</p>
               {todayLog.map((l) => (
-                <Card key={l.id} className="bg-green-50 border-green-200">
+                <Card key={l.id} className="bg-secondary border-border">
                   <CardContent className="p-3">
                     <button
                       type="button"
@@ -380,8 +440,8 @@ export default function MealPlanPage() {
                       className="w-full flex items-center justify-between gap-2 text-left"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium flex items-center gap-1">
-                          <Check className="h-4 w-4 text-green-700" />
+                        <p className="text-sm font-medium flex items-center gap-1 text-foreground">
+                          <Check className="h-4 w-4 text-primary" />
                           {l.meal_name}
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -401,7 +461,7 @@ export default function MealPlanPage() {
           {/* Meal cards */}
           <div className="space-y-3">
             {plan.items.map((item) => (
-              <MealCard key={item.id} item={item} onLog={handleLogMeal} onSwap={handleSwap} />
+              <MealCard key={item.id} item={item} onLog={handleLogMeal} onSwap={handleSwap} onDelete={handleDeleteItem} />
             ))}
           </div>
 
