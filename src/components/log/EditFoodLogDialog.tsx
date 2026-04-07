@@ -108,7 +108,7 @@ export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
           </div>
 
           <div className="rounded-lg border p-3 space-y-2 bg-secondary/40">
-            <Label className="text-xs">Ajuste rapido por porcentaje</Label>
+            <Label className="text-xs">Ajuste rápido por porcentaje</Label>
             <p className="text-xs text-muted-foreground">
               Ej: comiste la mitad → 50. Escala todos los macros proporcionalmente.
             </p>
@@ -128,11 +128,11 @@ export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-xs">Calorias (kcal)</Label>
+              <Label className="text-xs">Calorías (kcal)</Label>
               <Input type="number" inputMode="decimal" value={calories} onChange={(e) => setCalories(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Proteina (g)</Label>
+              <Label className="text-xs">Proteína (g)</Label>
               <Input type="number" inputMode="decimal" value={protein} onChange={(e) => setProtein(e.target.value)} />
             </div>
             <div className="space-y-1">

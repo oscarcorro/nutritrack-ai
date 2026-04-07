@@ -77,7 +77,7 @@ export default function ProgressPage() {
   const handleAddWeight = async () => {
     const weight = parseFloat(newWeight)
     if (!weight || weight < 30 || weight > 300) {
-      toast.error("Introduce un peso valido (30-300 kg)")
+      toast.error("Introduce un peso válido (30-300 kg)")
       return
     }
     setSavingWeight(true)
@@ -133,7 +133,7 @@ export default function ProgressPage() {
       {/* Weight chart */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Peso (ultimos 30 dias)</CardTitle>
+          <CardTitle className="text-base">Peso (últimos 30 días)</CardTitle>
         </CardHeader>
         <CardContent>
           {weightChartData.length > 0 ? (
@@ -158,7 +158,7 @@ export default function ProgressPage() {
       {/* Calorie adherence chart */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Calorias (ultima semana)</CardTitle>
+          <CardTitle className="text-base">Calorías (última semana)</CardTitle>
         </CardHeader>
         <CardContent>
           {calorieChartData.length > 0 ? (
@@ -175,7 +175,7 @@ export default function ProgressPage() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-center text-muted-foreground py-8">Sin datos de calorias esta semana.</p>
+            <p className="text-center text-muted-foreground py-8">Sin datos de calorías esta semana.</p>
           )}
         </CardContent>
       </Card>
@@ -208,7 +208,7 @@ export default function ProgressPage() {
           <CardContent className="p-4 text-center">
             <Flame className="h-6 w-6 mx-auto mb-1 text-orange-500" />
             <p className="text-xs text-muted-foreground">Racha</p>
-            <p className="text-xl font-bold">{streak} dias</p>
+            <p className="text-xl font-bold">{streak} días</p>
           </CardContent>
         </Card>
       </div>

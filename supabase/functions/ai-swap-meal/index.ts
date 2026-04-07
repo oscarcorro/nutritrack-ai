@@ -25,6 +25,11 @@ interface SwappedMeal {
 const MODEL = "claude-haiku-4-5-20251001"
 
 const SYSTEM = `Eres un nutricionista. Reemplaza una comida por otra diferente pero con macros similares (dentro de +-10%).
+
+<safety>
+NUNCA incluyas ingredientes listados en "Alergias" o "Intolerancias" del usuario. Esta regla anula cualquier otra. Verifica la lista antes de proponer el plato.
+</safety>
+
 Respeta las preferencias y alergias del usuario. Devuelve SOLO JSON con esta estructura:
 {
   "meal_name": "nuevo plato",
@@ -72,12 +77,15 @@ Deno.serve(async (req: Request) => {
           role: "user",
           content: `${contextPrompt}\n\nCOMIDA ACTUAL A REEMPLAZAR (${original.meal_type}):
 - Nombre: ${original.meal_name}
+- Descripcion: ${original.description ?? "(sin descripcion)"}
+- Ingredientes: ${JSON.stringify(original.ingredients ?? [])}
 - Calorias: ${original.calories}
 - Proteina: ${original.protein_g} g
 - Carbos: ${original.carbs_g} g
 - Grasa: ${original.fat_g} g
+- Fibra: ${original.fiber_g} g
 
-Genera una alternativa diferente con macros similares.`,
+Genera una alternativa diferente con macros similares. Manten la fibra dentro de +-20% del original. Manten el meal_type (${original.meal_type}).`,
         },
       ],
       max_tokens: 1024,

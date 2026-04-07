@@ -129,7 +129,7 @@ export default function AuthPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Contrasena</Label>
+                    <Label htmlFor="login-password">Contraseña</Label>
                     <Input
                       id="login-password"
                       type="password"
@@ -172,11 +172,11 @@ export default function AuthPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Contrasena</Label>
+                    <Label htmlFor="signup-password">Contraseña</Label>
                     <Input
                       id="signup-password"
                       type="password"
-                      placeholder="Minimo 6 caracteres"
+                      placeholder="Mínimo 6 caracteres"
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
                       autoComplete="new-password"

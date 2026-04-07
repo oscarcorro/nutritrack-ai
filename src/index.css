@@ -54,7 +54,7 @@ body {
   background-image:
     radial-gradient(1200px 600px at 50% -200px, rgba(21, 134, 74, 0.06), transparent 60%),
     radial-gradient(800px 400px at 100% 100%, rgba(224, 146, 20, 0.04), transparent 60%);
-  background-attachment: fixed;
+  /* background-attachment: fixed removed — caused scroll jank on mid-range Android */
 }
 
 #root {

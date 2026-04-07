@@ -21,35 +21,35 @@ const STEPS: TourStep[] = [
     route: "/inicio",
     title: "Bienvenido a NutriTrack",
     body:
-      "Esta es tu pagina principal. Voy a enseñarte como funciona la app en menos de un minuto, resaltando cada parte importante.",
+      "Esta es tu página principal. Voy a enseñarte cómo funciona la app en menos de un minuto, resaltando cada parte importante.",
   },
   {
     route: "/inicio",
     target: "ring",
-    title: "Tu dia de un vistazo",
+    title: "Tu día de un vistazo",
     body:
-      "El anillo muestra las calorias consumidas frente a tu objetivo y los macros del dia. Se actualiza al instante cuando registras comida.",
+      "El anillo muestra las calorías consumidas frente a tu objetivo y los macros del día. Se actualiza al instante cuando registras comida.",
   },
   {
     route: "/inicio",
     target: "quick-actions",
-    title: "Acciones rapidas",
+    title: "Acciones rápidas",
     body:
-      "Desde aqui puedes registrar una comida o anotar tu peso sin moverte de la pantalla principal.",
+      "Desde aquí puedes registrar una comida o anotar tu peso sin moverte de la pantalla principal.",
   },
   {
     route: "/perfil",
     target: "goals",
     title: "Tus objetivos",
     body:
-      "Define si quieres perder grasa, mantener o ganar musculo, y escoge la intensidad (suave, moderado, agresivo). Esto ajusta tu deficit o superavit siguiendo la ciencia nutricional mas actual.",
+      "Define si quieres perder grasa, mantener o ganar músculo, y escoge la intensidad (suave, moderado, agresivo). Esto ajusta tu déficit o superávit siguiendo la ciencia nutricional más actual.",
   },
   {
     route: "/perfil",
     target: "pantry",
     title: "Tu despensa",
     body:
-      "Añade productos con sus macros exactos (foto de la etiqueta o manual). Cuando digas 'he comido 150g de X' el conteo sera exacto, no una estimacion.",
+      "Añade productos con sus macros exactos (foto de la etiqueta o manual). Cuando digas 'he comido 150g de X' el conteo será exacto, no una estimación.",
   },
   {
     route: "/plan",
@@ -63,20 +63,20 @@ const STEPS: TourStep[] = [
     target: "log-tabs",
     title: "Registrar comida",
     body:
-      "Haz una foto, dicta por voz, o escribelo. La IA calcula calorias y macros y puedes editar todo antes de guardar.",
+      "Haz una foto, dicta por voz, o escríbelo. La IA calcula calorías y macros y puedes editar todo antes de guardar.",
   },
   {
     route: "/progreso",
     target: "weight",
     title: "Progreso",
     body:
-      "Revisa la evolucion de tu peso y la adherencia al plan. Pesate cada manana para mejores resultados.",
+      "Revisa la evolución de tu peso y la adherencia al plan. Pésate cada mañana para mejores resultados.",
   },
   {
     route: "/inicio",
     title: "Listo para empezar",
     body:
-      "Pasos recomendados: 1) revisa tu perfil y objetivos, 2) llena la despensa, 3) genera el plan del dia, 4) registra cada comida, 5) pesate cada manana. Puedes reabrir esta guia desde Perfil.",
+      "Pasos recomendados: 1) revisa tu perfil y objetivos, 2) llena la despensa, 3) genera el plan del día, 4) registra cada comida, 5) pésate cada mañana. Puedes reabrir esta guía desde Perfil.",
   },
 ]
 

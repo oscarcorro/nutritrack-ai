@@ -136,7 +136,7 @@ function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) 
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Calorias (7 dias)</CardTitle>
+          <CardTitle className="text-base">Calorías (7 días)</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={180}>

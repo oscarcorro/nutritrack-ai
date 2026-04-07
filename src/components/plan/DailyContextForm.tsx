@@ -58,7 +58,7 @@ export function DailyContextForm({ onSubmit, generating, loggedMealTypes = [] }:
       ? missing.length === 1
         ? `¿Te ayudo con ${MEAL_TYPE_LABELS[missing[0]].toLowerCase()}?`
         : `¿Necesitas ayuda con ${MEAL_TYPE_LABELS[missing[0]].toLowerCase()}?`
-      : "Cuentame que vas a hacer hoy"
+      : "Cuéntame qué vas a hacer hoy"
 
   const placeholder = someLogged
     ? "Opcional: ej. 'algo ligero', 'sin pescado'..."

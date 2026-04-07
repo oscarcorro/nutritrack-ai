@@ -31,8 +31,13 @@ interface SuggestedMeal {
 const MODEL = "claude-sonnet-4-5"
 
 const SYSTEM = `Eres un nutricionista. Sugiere UNA sola comida especifica para un slot (desayuno/comida/cena/snack).
+
+<safety>
+NUNCA incluyas ingredientes listados en "Alergias" o "Intolerancias" del usuario. Esta regla anula cualquier otra. Verifica la lista antes de proponer el plato.
+</safety>
+
 Debe encajar en los macros restantes del dia y respetar preferencias, alergias, intolerancias y despensa del usuario.
-Si hay productos con marca en la despensa con macros exactos, usalos preferentemente. Si el usuario menciona una marca que no esta en la despensa puedes usar web_search.
+Si hay productos con marca en la despensa con macros exactos, usalos preferentemente. Usa tu conocimiento de macros tipicos para productos de marca.
 
 Devuelve SOLO JSON con esta estructura:
 {
@@ -94,12 +99,23 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { data: loggedToday } = await client
+    // Timezone-correct window in Europe/Madrid. TODO: hardcoded TZ.
+    const windowStart = new Date(`${plan_date}T00:00:00Z`)
+    windowStart.setUTCDate(windowStart.getUTCDate() - 1)
+    const windowEnd = new Date(`${plan_date}T23:59:59Z`)
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 1)
+    const { data: loggedRaw } = await client
       .from("food_log")
-      .select("meal_type, meal_name, calories, protein_g, carbs_g, fat_g, fiber_g")
+      .select("meal_type, meal_name, calories, protein_g, carbs_g, fat_g, fiber_g, logged_at")
       .eq("user_id", user.id)
-      .gte("logged_at", `${plan_date}T00:00:00`)
-      .lte("logged_at", `${plan_date}T23:59:59`)
+      .gte("logged_at", windowStart.toISOString())
+      .lte("logged_at", windowEnd.toISOString())
+    const loggedToday = (loggedRaw ?? []).filter((r) => {
+      const localDate = new Date((r as { logged_at: string }).logged_at).toLocaleDateString("en-CA", {
+        timeZone: "Europe/Madrid",
+      })
+      return localDate === plan_date
+    })
     const logged = (loggedToday ?? []) as Array<Record<string, unknown>>
 
     const allConsumedOrPlanned = [...logged, ...planItems]
@@ -173,7 +189,7 @@ Puede variar un 10-15% si eso hace la comida mas realista.`,
         },
       ],
       max_tokens: 1024,
-      temperature: 0.9,
+      temperature: 0.6,
     })
 
     const parsed = extractJSON<SuggestedMeal>(text)

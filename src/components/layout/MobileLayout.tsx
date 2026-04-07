@@ -1,11 +1,10 @@
-import { Outlet, Link, useLocation } from "react-router-dom"
+import { Outlet, Link } from "react-router-dom"
 import { User } from "lucide-react"
 import { BottomTabBar } from "./BottomTabBar"
 import { GuidedTour } from "@/components/onboarding/GuidedTour"
 import { useProfile } from "@/hooks/use-profile"
 
 export function MobileLayout() {
-  const location = useLocation()
   const { data: profile } = useProfile()
   return (
     <div className="flex flex-col min-h-svh bg-background max-w-lg mx-auto relative">
@@ -34,8 +33,8 @@ export function MobileLayout() {
         </div>
       </header>
 
-      {/* Page content — keyed on pathname so each route fades in smoothly */}
-      <main key={location.pathname} className="flex-1 px-4 py-5 pb-28 overflow-y-auto nt-page">
+      {/* Page content */}
+      <main className="flex-1 px-4 py-5 pb-28 overflow-y-auto">
         <Outlet />
       </main>
 

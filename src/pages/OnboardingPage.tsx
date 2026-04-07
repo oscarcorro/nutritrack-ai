@@ -203,9 +203,9 @@ export default function OnboardingPage() {
   }
 
   const goalOptions: { type: GoalType; icon: React.ReactNode; title: string; desc: string }[] = [
-    { type: "lose_weight", icon: <Target className="h-8 w-8" />, title: "Perder grasa", desc: "Deficit calorico controlado" },
-    { type: "maintain", icon: <Scale className="h-8 w-8" />, title: "Mantener peso", desc: "Mantener tu composicion actual" },
-    { type: "gain_muscle", icon: <Dumbbell className="h-8 w-8" />, title: "Ganar musculo", desc: "Superavit calorico moderado" },
+    { type: "lose_weight", icon: <Target className="h-8 w-8" />, title: "Perder grasa", desc: "Déficit calórico controlado" },
+    { type: "maintain", icon: <Scale className="h-8 w-8" />, title: "Mantener peso", desc: "Mantener tu composición actual" },
+    { type: "gain_muscle", icon: <Dumbbell className="h-8 w-8" />, title: "Ganar músculo", desc: "Superávit calórico moderado" },
   ]
 
   const tagColors: Record<PreferenceType, "success" | "destructive" | "warning" | "secondary"> = {
@@ -318,7 +318,7 @@ export default function OnboardingPage() {
           </div>
           {goalType && goalType !== "maintain" && (
             <div className="space-y-2">
-              <Label>Intensidad del {goalType === "lose_weight" ? "deficit" : "superavit"}</Label>
+              <Label>Intensidad del {goalType === "lose_weight" ? "déficit" : "superávit"}</Label>
               <div className="grid grid-cols-3 gap-2">
                 {(["light", "moderate", "aggressive"] as GoalIntensity[]).map((lvl) => (
                   <button
@@ -341,7 +341,7 @@ export default function OnboardingPage() {
             </div>
           )}
           <div className="space-y-2">
-            <Label>Dias de ejercicio por semana: {exerciseDays}</Label>
+            <Label>Días de ejercicio por semana: {exerciseDays}</Label>
             <Slider
               value={[exerciseDays]}
               onValueChange={(v) => setExerciseDays(v[0])}
@@ -438,7 +438,7 @@ export default function OnboardingPage() {
             <Label htmlFor="diet-notes">Algo mas que debamos saber sobre tu alimentacion?</Label>
             <Textarea
               id="diet-notes"
-              placeholder="Ejemplo: Prefiero comidas simples y rapidas de preparar..."
+              placeholder="Ejemplo: Prefiero comidas simples y rápidas de preparar..."
               value={dietNotes}
               onChange={(e) => setDietNotes(e.target.value)}
             />
@@ -466,14 +466,14 @@ export default function OnboardingPage() {
               </div>
 
               <div className="text-center p-4 rounded-xl bg-accent">
-                <p className="text-sm text-muted-foreground">Calorias diarias objetivo</p>
+                <p className="text-sm text-muted-foreground">Calorías diarias objetivo</p>
                 <p className="text-3xl font-bold text-primary">{formatCalories(calorieTarget)}</p>
               </div>
 
               {macros && (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center p-3 rounded-xl bg-blue-50">
-                    <p className="text-xs text-muted-foreground">Proteina</p>
+                    <p className="text-xs text-muted-foreground">Proteína</p>
                     <p className="text-lg font-bold text-blue-700">{formatMacro(macros.protein_g)}</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-amber-50">

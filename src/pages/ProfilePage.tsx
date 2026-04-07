@@ -37,7 +37,7 @@ import { HelpCircle } from "lucide-react"
 const GOAL_LABELS: Record<GoalType, string> = {
   lose_weight: "Perder grasa",
   maintain: "Mantener peso",
-  gain_muscle: "Ganar musculo",
+  gain_muscle: "Ganar músculo",
 }
 
 const MEAL_SCHEDULE_LABELS: Record<MealType, string> = {
@@ -172,7 +172,7 @@ export default function ProfilePage() {
     const startW = parseFloat(goalStartWeight)
     const targetW = parseFloat(goalTargetWeight)
     if (!cals || !startW || !targetW) {
-      toast.error("Completa peso actual, objetivo y calorias")
+      toast.error("Completa peso actual, objetivo y calorías")
       return
     }
     setSavingGoal(true)
@@ -303,7 +303,7 @@ export default function ProfilePage() {
                 <p className="text-xl font-bold">{profile.display_name}</p>
                 <p className="text-sm text-muted-foreground">
                   {profile.gender === "male" ? "Hombre" : profile.gender === "female" ? "Mujer" : "-"}
-                  {age ? `, ${age} anos` : ""}
+                  {age ? `, ${age} años` : ""}
                 </p>
               </div>
             </div>
@@ -326,7 +326,7 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center p-3 rounded-xl bg-secondary">
               <Calendar className="h-5 w-5 text-muted-foreground mb-1" />
               <p className="text-lg font-bold">{profile.exercise_days_per_week ?? "--"}</p>
-              <p className="text-xs text-muted-foreground">dias/sem</p>
+              <p className="text-xs text-muted-foreground">días/sem</p>
             </div>
           </div>
 
@@ -357,7 +357,7 @@ export default function ProfilePage() {
               <Badge variant="success" className="text-sm">{GOAL_LABELS[goal.goal_type as GoalType] || goal.goal_type}</Badge>
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <div>
-                  <p className="text-sm text-muted-foreground">Calorias/dia</p>
+                  <p className="text-sm text-muted-foreground">Calorías/día</p>
                   <p className="text-lg font-bold">{formatCalories(goal.daily_calories_target)}</p>
                 </div>
                 <div>
@@ -495,7 +495,7 @@ export default function ProfilePage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Dias de ejercicio/semana</Label>
+                <Label>Días de ejercicio/semana</Label>
                 <Input type="number" min="0" max="7" value={editExerciseDays} onChange={(e) => setEditExerciseDays(e.target.value)} />
               </div>
               <div className="space-y-2">
@@ -551,13 +551,13 @@ export default function ProfilePage() {
                 <SelectContent>
                   <SelectItem value="lose_weight">Perder grasa</SelectItem>
                   <SelectItem value="maintain">Mantener peso</SelectItem>
-                  <SelectItem value="gain_muscle">Ganar musculo</SelectItem>
+                  <SelectItem value="gain_muscle">Ganar músculo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {goalType !== "maintain" && (
               <div className="space-y-2">
-                <Label>Intensidad del {goalType === "lose_weight" ? "deficit" : "superavit"}</Label>
+                <Label>Intensidad del {goalType === "lose_weight" ? "déficit" : "superávit"}</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {(["light", "moderate", "aggressive"] as GoalIntensity[]).map((lvl) => (
                     <button
@@ -591,16 +591,16 @@ export default function ProfilePage() {
             </div>
 
             <Button type="button" variant="outline" size="sm" onClick={recalculateFromProfile} className="w-full">
-              Recalcular calorias y macros
+              Recalcular calorías y macros
             </Button>
 
             <div className="space-y-2">
-              <Label>Calorias/dia</Label>
+              <Label>Calorías/día</Label>
               <Input type="number" value={goalCalories} onChange={(e) => setGoalCalories(e.target.value)} />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
-                <Label>Proteina (g)</Label>
+                <Label>Proteína (g)</Label>
                 <Input type="number" value={goalProtein} onChange={(e) => setGoalProtein(e.target.value)} />
               </div>
               <div className="space-y-2">

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "@/contexts/AuthContext"
@@ -7,13 +8,28 @@ import { MobileLayout } from "@/components/layout/MobileLayout"
 import { ProtectedRoute } from "@/components/shared/ProtectedRoute"
 
 import AuthPage from "@/pages/AuthPage"
-import OnboardingPage from "@/pages/OnboardingPage"
-import HomePage from "@/pages/HomePage"
-import MealPlanPage from "@/pages/MealPlanPage"
-import LogMealPage from "@/pages/LogMealPage"
-import ProgressPage from "@/pages/ProgressPage"
-import ProfilePage from "@/pages/ProfilePage"
-import AdminPage from "@/pages/AdminPage"
+const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"))
+const HomePage = lazy(() => import("@/pages/HomePage"))
+const MealPlanPage = lazy(() => import("@/pages/MealPlanPage"))
+const LogMealPage = lazy(() => import("@/pages/LogMealPage"))
+const ProgressPage = lazy(() => import("@/pages/ProgressPage"))
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"))
+const AdminPage = lazy(() => import("@/pages/AdminPage"))
+
+function PageSkeleton() {
+  return (
+    <div
+      className="flex-1 px-4 py-5 animate-pulse"
+      role="status"
+      aria-label="Cargando…"
+    >
+      <div className="h-8 w-1/2 rounded-lg bg-secondary mb-4" />
+      <div className="h-32 w-full rounded-2xl bg-secondary mb-3" />
+      <div className="h-32 w-full rounded-2xl bg-secondary mb-3" />
+      <div className="h-24 w-full rounded-2xl bg-secondary" />
+    </div>
+  )
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +46,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <MealPlanGenerationProvider>
+          <Suspense fallback={<PageSkeleton />}>
           <Routes>
             {/* Public */}
             <Route path="/auth" element={<AuthPage />} />
@@ -64,6 +81,7 @@ function App() {
             <Route path="/" element={<Navigate to="/inicio" replace />} />
             <Route path="*" element={<Navigate to="/inicio" replace />} />
           </Routes>
+          </Suspense>
           <Toaster />
           </MealPlanGenerationProvider>
         </AuthProvider>

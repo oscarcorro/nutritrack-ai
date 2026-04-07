@@ -312,13 +312,13 @@ export default function MealPlanPage() {
                   <Sparkles className="h-4 w-4 text-primary" /> Pedir sugerencia
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Pide a la IA que te proponga una comida para un hueco del dia. Tendra en cuenta lo que ya has comido.
+                  Pide a la IA que te proponga una comida para un hueco del día. Tendrá en cuenta lo que ya has comido.
                 </p>
                 {suggestingType ? (
                   <div className="space-y-2">
                     <p className="text-sm">Sugiriendo <strong>{MEAL_TYPE_LABELS[suggestingType]}</strong></p>
                     <Input
-                      placeholder="Opcional: 'algo ligero y rapido', 'con pollo'..."
+                      placeholder="Opcional: 'algo ligero y rápido', 'con pollo'..."
                       value={suggestNotes}
                       onChange={(e) => setSuggestNotes(e.target.value)}
                     />
@@ -362,15 +362,15 @@ export default function MealPlanPage() {
           {/* Daily totals */}
           <Card className="bg-accent">
             <CardContent className="p-4">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Total del dia</p>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Total del día</p>
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
                   <p className="text-lg font-bold text-primary">{formatCalories(dailyTotals.calories)}</p>
-                  <p className="text-xs text-muted-foreground">Calorias</p>
+                  <p className="text-xs text-muted-foreground">Calorías</p>
                 </div>
                 <div>
                   <p className="text-lg font-bold text-blue-700">{formatMacro(dailyTotals.protein)}</p>
-                  <p className="text-xs text-muted-foreground">Proteina</p>
+                  <p className="text-xs text-muted-foreground">Proteína</p>
                 </div>
                 <div>
                   <p className="text-lg font-bold text-amber-700">{formatMacro(dailyTotals.carbs)}</p>

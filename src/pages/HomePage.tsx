@@ -139,7 +139,7 @@ export default function HomePage() {
             {/* Macro bars */}
             <div className="grid grid-cols-3 gap-3 w-full mt-5">
               <div className="p-3 rounded-xl bg-[#eff6ff] border border-[#dbeafe]">
-                <p className="text-[11px] font-medium text-blue-700/80 uppercase tracking-wide">Proteina</p>
+                <p className="text-[11px] font-medium text-blue-700/80 uppercase tracking-wide">Proteína</p>
                 <p className="text-[15px] font-bold text-blue-800 tabular-nums mt-0.5">
                   {formatMacro(todayStats.protein)}
                   <span className="text-xs font-medium text-blue-700/70"> / {formatMacro(goal.protein_g)}</span>

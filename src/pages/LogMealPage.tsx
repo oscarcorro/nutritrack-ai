@@ -55,7 +55,7 @@ function ManualEntryForm({
       return
     }
     if (!calories) {
-      toast.error("Indica las calorias")
+      toast.error("Indica las calorías")
       return
     }
     onSave({
@@ -90,11 +90,11 @@ function ManualEntryForm({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor="calories">Calorias</Label>
+          <Label htmlFor="calories">Calorías</Label>
           <Input id="calories" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="protein">Proteina (g)</Label>
+          <Label htmlFor="protein">Proteína (g)</Label>
           <Input id="protein" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} />
         </div>
         <div className="space-y-1.5">

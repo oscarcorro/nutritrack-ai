@@ -161,7 +161,7 @@ export function TesterControls() {
       }
       setConfirm(null)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error ejecutando accion")
+      toast.error(e instanceof Error ? e.message : "Error ejecutando acción")
     } finally {
       setRunning(false)
     }
@@ -207,13 +207,13 @@ export function TesterControls() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" /> Confirmar accion
+              <AlertTriangle className="h-5 w-5" /> Confirmar acción
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             <p className="font-medium">{confirm?.label}</p>
             <p className="text-sm text-muted-foreground">{confirm?.description}</p>
-            <p className="text-xs text-destructive">Esta accion no se puede deshacer.</p>
+            <p className="text-xs text-destructive">Esta acción no se puede deshacer.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirm(null)} disabled={running}>

@@ -324,7 +324,7 @@ export function PantrySection() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Toca un alimento para añadir sus macros por 100g (desde foto de la etiqueta o a mano). Asi el contador de calorias es preciso cuando lo comas.
+          Toca un alimento para añadir sus macros por 100g (desde foto de la etiqueta o a mano). Así el contador de calorías es preciso cuando lo comas.
         </p>
 
         {isLoading ? (
@@ -470,7 +470,7 @@ export function PantrySection() {
               <p className="text-sm font-semibold mb-2">Valores por 100 {edit.serving_unit || "g"}</p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Calorias (kcal)</Label>
+                  <Label className="text-xs">Calorías (kcal)</Label>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -491,7 +491,7 @@ export function PantrySection() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Proteina (g)</Label>
+                  <Label className="text-xs">Proteína (g)</Label>
                   <Input
                     type="number"
                     inputMode="decimal"

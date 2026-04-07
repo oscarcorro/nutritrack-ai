@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "NutriTrack AI",
   "short_name": "NutriTrack",
-  "description": "Tu plan de nutrición con inteligencia artificial",
+  "description": "Tu plan de nutrición con inteligencia artificial. Registra comidas, sigue tu progreso y recibe un plan personalizado.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,9 +10,25 @@
   "theme_color": "#16a34a",
   "background_color": "#ffffff",
   "lang": "es",
+  "dir": "ltr",
+  "categories": ["health", "fitness", "lifestyle"],
   "icons": [
     { "src": "/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Registrar comida",
+      "short_name": "Registrar",
+      "url": "/registrar",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Pesarme",
+      "short_name": "Progreso",
+      "url": "/progreso",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    }
   ]
 }

@@ -29,7 +29,7 @@ export default defineConfig({
       manifest: false,
       includeAssets: ['favicon.svg', 'icon.svg', 'manifest.json'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,jpeg,webp,ico,woff2}'],
         navigateFallback: '/index.html',
         skipWaiting: true,
         clientsClaim: true,
@@ -43,6 +43,28 @@ export default defineConfig({
               expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
+          {
+            urlPattern: ({ url }) =>
+              url.origin.includes('supabase.co') && url.pathname.startsWith('/rest/v1/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-api',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: ({ url }) =>
+              url.origin.includes('supabase.co') &&
+              url.pathname.startsWith('/storage/v1/object/public/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'supabase-storage',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       devOptions: { enabled: false },
@@ -51,6 +73,37 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (
+            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/react-router/') ||
+            id.match(/node_modules\/react-dom(\/|$)/) ||
+            id.match(/node_modules\/react(\/|$)/) ||
+            id.includes('node_modules/scheduler')
+          ) {
+            return 'react-vendor'
+          }
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+            return 'recharts'
+          }
+          if (id.includes('node_modules/@radix-ui/')) {
+            return 'radix'
+          }
+          if (id.includes('node_modules/@supabase/')) {
+            return 'supabase'
+          }
+          if (id.includes('node_modules/@tanstack/react-query')) {
+            return 'query'
+          }
+        },
+      },
     },
   },
 })

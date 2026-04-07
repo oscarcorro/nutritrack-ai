@@ -12,7 +12,6 @@ import {
   callAnthropic,
   extractJSON,
   AnthropicContentBlock,
-  WEB_SEARCH_TOOL,
 } from "../_shared/anthropic.ts"
 import { getUserClient, getUser } from "../_shared/supabase.ts"
 
@@ -43,7 +42,7 @@ Reglas:
 - Si el producto es liquido (leche, zumo, yogur bebible), usa serving_unit="ml".
 - Si es solido, usa serving_unit="g".
 - Incluye el nombre del producto y la marca si se ven.
-- Si la etiqueta no es legible o no esta visible, usa la herramienta web_search para buscar los valores nutricionales oficiales de la marca usando el nombre que veas en el paquete o el hint.
+- Si la etiqueta no es legible o no esta visible, usa tu conocimiento de etiquetas tipicas del producto que identifiques en la foto o del hint del usuario.
 - Nunca inventes numeros — si algo no se puede determinar, devuelve null para ese campo.
 
 Devuelve SOLO JSON con esta estructura exacta:
@@ -86,8 +85,8 @@ Deno.serve(async (req: Request) => {
       {
         type: "text",
         text: body.product_hint
-          ? `Extrae los valores nutricionales por 100g de este producto. Pista del usuario: "${body.product_hint}". Si la etiqueta no es legible usa web_search para buscar los valores oficiales.`
-          : "Extrae los valores nutricionales por 100g de este producto. Si la etiqueta no es legible usa web_search.",
+          ? `Extrae los valores nutricionales por 100g de este producto. Pista del usuario: "${body.product_hint}". Si la etiqueta no es legible usa tu conocimiento de etiquetas tipicas.`
+          : "Extrae los valores nutricionales por 100g de este producto. Si la etiqueta no es legible usa tu conocimiento de etiquetas tipicas.",
       },
     ]
 
@@ -97,7 +96,6 @@ Deno.serve(async (req: Request) => {
       messages: [{ role: "user", content }],
       max_tokens: 1024,
       temperature: 0.1,
-      tools: [WEB_SEARCH_TOOL],
     })
 
     const parsed = extractJSON<Nutrition>(text)

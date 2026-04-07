@@ -33,6 +33,16 @@ const MODEL = "claude-sonnet-4-5"
 
 const SYSTEM = `Eres un nutricionista deportivo basado en evidencia cientifica. Tus planes deben ser efectivos, sostenibles y respaldados por la literatura (Helms, Aragon, Schoenfeld, Trexler, ISSN position stands).
 
+<safety>
+NUNCA incluyas ingredientes listados en "Alergias" o "Intolerancias" del usuario. Esta regla anula cualquier otra. Verifica la lista antes de cada plato.
+Adapta el plan a las "Notas de salud" del usuario:
+- Hipertension → sodio bajo (<2 g/dia), evita ultraprocesados salados, embutidos, salsas comerciales.
+- Diabetes / prediabetes → indice glucemico bajo, evita azucares libres, prioriza fibra y proteina.
+- Hipercolesterolemia → grasas saludables (oliva, pescado azul, frutos secos), evita grasas trans y embutidos grasos.
+- Insuficiencia renal → limita proteina a 0.8-1.0 g/kg total dia (NO sigas la regla de 0.4 g/kg/comida).
+Si las notas de salud entran en conflicto con los principios cientificos generales, las notas de salud ganan.
+</safety>
+
 PRINCIPIOS CIENTIFICOS QUE DEBES RESPETAR SIEMPRE:
 1. PROTEINA ES PRIORITARIA. Distribuye 3-5 tomas de >=0.4 g/kg cada una (umbral de leucina ~2.5-3 g por comida) para maximizar sintesis proteica muscular. No agrupes toda la proteina en una sola comida.
 2. DEFICIT/SUPERAVIT SOSTENIBLE. En deficit (lose_weight) prioriza saciedad: alta proteina, alta fibra, alimentos de alto volumen y baja densidad calorica (verduras, legumbres, fruta entera, carnes magras, lacteos 0%). En superavit (gain_muscle) prioriza densidad calorica y facilidad de ingesta (carbos complejos, grasas saludables, lacteos enteros).
@@ -40,6 +50,7 @@ PRINCIPIOS CIENTIFICOS QUE DEBES RESPETAR SIEMPRE:
    - light = conservador, maxima retencion muscular / minima ganancia de grasa
    - moderate = estandar
    - aggressive = rapido, solo para bloques cortos; aun asi, mantener proteina alta
+   - NUNCA generes un plan cuya suma de calorias caiga por debajo del minimo seguro: 1500 kcal/dia para hombres, 1200 kcal/dia para mujeres. Si los MACROS RESTANTES indican un objetivo menor, redondea hacia el minimo seguro y advierte en la descripcion.
 4. CARBOS ALREDEDOR DEL ENTRENO. Si el usuario indica que va a entrenar, coloca la mayor ingesta de carbohidratos en la comida previa (1-3 h antes) y la posterior (ventana de 0-2 h despues). En dias sedentarios puedes bajar carbos y subir grasas manteniendo proteina.
 5. FIBRA 25-40 g/dia. De fuentes reales: verduras, legumbres, fruta entera, avena, integrales. Es clave para saciedad y salud intestinal.
 6. GRASAS SANAS >=0.8 g/kg. Aceite de oliva virgen extra, frutos secos, aguacate, pescado azul, huevo entero. Evita grasas trans y exceso de ultraprocesados.
@@ -57,7 +68,7 @@ Debes crear un plan para UN dia completo respetando:
 - Usar ingredientes comunes y faciles de encontrar en Espana
 - Recetas realistas, practicas y sabrosas (max 30 min de prep para el dia a dia)
 - Proporcionar el numero de comidas indicado
-- Si hay despensa del usuario, prioriza esos ingredientes (especialmente con marcas concretas). Puedes usar web_search para buscar macros reales de productos de marca si los usas.
+- Si hay despensa del usuario, prioriza esos ingredientes (especialmente con marcas concretas). Usa tu conocimiento de macros tipicos para productos de marca.
 
 Devuelve SOLO JSON valido con esta estructura:
 {
@@ -105,12 +116,25 @@ Deno.serve(async (req: Request) => {
     // Load food already logged for this date, so the plan accounts for
     // meals the user already ate. Only the remaining meal slots get
     // AI-generated, using the remaining macro budget.
-    const { data: loggedToday } = await client
+    // Timezone-correct: query a wide UTC window (±1 day) and filter in JS
+    // against each row's civil date in Europe/Madrid. TODO: hardcoded TZ.
+    const windowStart = new Date(`${plan_date}T00:00:00Z`)
+    windowStart.setUTCDate(windowStart.getUTCDate() - 1)
+    const windowEnd = new Date(`${plan_date}T23:59:59Z`)
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 1)
+    const { data: loggedRaw } = await client
       .from("food_log")
-      .select("meal_type, meal_name, calories, protein_g, carbs_g, fat_g, fiber_g")
+      .select("meal_type, meal_name, calories, protein_g, carbs_g, fat_g, fiber_g, logged_at")
       .eq("user_id", user.id)
-      .gte("logged_at", `${plan_date}T00:00:00`)
-      .lte("logged_at", `${plan_date}T23:59:59`)
+      .gte("logged_at", windowStart.toISOString())
+      .lte("logged_at", windowEnd.toISOString())
+
+    const loggedToday = (loggedRaw ?? []).filter((r) => {
+      const localDate = new Date((r as { logged_at: string }).logged_at).toLocaleDateString("en-CA", {
+        timeZone: "Europe/Madrid",
+      })
+      return localDate === plan_date
+    })
 
     const logged = (loggedToday ?? []) as Array<{
       meal_type: string | null
@@ -177,7 +201,7 @@ IMPORTANTE: Genera SOLO las comidas restantes (meal_type NO incluidos arriba). E
         },
       ],
       max_tokens: 8192,
-      temperature: 0.8,
+      temperature: 0.5,
     })
 
     const parsed = extractJSON<GeneratedPlan>(text)
