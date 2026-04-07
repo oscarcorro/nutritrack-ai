@@ -1,4 +1,5 @@
-import { Outlet, Link } from "react-router-dom"
+import { useEffect, useRef } from "react"
+import { Outlet, Link, useLocation } from "react-router-dom"
 import { User } from "lucide-react"
 import { BottomTabBar } from "./BottomTabBar"
 import { GuidedTour } from "@/components/onboarding/GuidedTour"
@@ -6,6 +7,12 @@ import { useProfile } from "@/hooks/use-profile"
 
 export function MobileLayout() {
   const { data: profile } = useProfile()
+  const { pathname } = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" })
+    window.scrollTo(0, 0)
+  }, [pathname])
   return (
     <div className="flex flex-col min-h-svh bg-background max-w-lg mx-auto relative">
       {/* Header */}
@@ -34,7 +41,7 @@ export function MobileLayout() {
       </header>
 
       {/* Page content */}
-      <main className="flex-1 px-4 py-5 pb-28 overflow-y-auto">
+      <main ref={mainRef} className="flex-1 px-4 py-5 pb-28 overflow-y-auto">
         <Outlet />
       </main>
 
