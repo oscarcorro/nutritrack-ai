@@ -13,7 +13,7 @@ import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "
 import type { MealPlanItem } from "@/integrations/supabase/types"
 import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles } from "lucide-react"
 import type { MealType } from "@/integrations/supabase/types"
-import { format, addDays, subDays } from "date-fns"
+import { format, addDays, subDays, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
 import { DailyContextForm } from "@/components/plan/DailyContextForm"
 import { EditFoodLogDialog } from "@/components/log/EditFoodLogDialog"
@@ -66,6 +66,7 @@ function MealCard({
           <Badge variant="outline" className="text-xs">P: {item.protein_g ? formatMacro(item.protein_g) : "--"}</Badge>
           <Badge variant="outline" className="text-xs">C: {item.carbs_g ? formatMacro(item.carbs_g) : "--"}</Badge>
           <Badge variant="outline" className="text-xs">G: {item.fat_g ? formatMacro(item.fat_g) : "--"}</Badge>
+          <Badge variant="outline" className="text-xs">Fibra: {item.fiber_g != null ? formatMacro(item.fiber_g) : "—"}</Badge>
         </div>
 
         {/* Recipe toggle */}
@@ -214,11 +215,44 @@ export default function MealPlanPage() {
     }
   }
 
+  // Week strip (Mon-Sun)
+  const weekStart = startOfWeek(date, { weekStartsOn: 1 })
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const todayStr = format(new Date(), "yyyy-MM-dd")
+  const dayLabels = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+
   return (
     <div className="space-y-4">
+      {/* Week strip */}
+      <div className="grid grid-cols-7 gap-1">
+        {weekDays.map((d, i) => {
+          const ds = format(d, "yyyy-MM-dd")
+          const isSelected = ds === dateStr
+          const isTodayPill = ds === todayStr
+          return (
+            <button
+              key={ds}
+              type="button"
+              onClick={() => setDate(d)}
+              className={`flex flex-col items-center justify-center rounded-xl py-2 min-h-[56px] border transition-colors ${
+                isSelected
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : isTodayPill
+                  ? "bg-accent border-primary/40 text-foreground"
+                  : "bg-background border-border text-foreground hover:bg-secondary"
+              }`}
+              aria-pressed={isSelected}
+            >
+              <span className="text-[11px] font-medium uppercase tracking-wide">{dayLabels[i]}</span>
+              <span className="text-base font-bold tabular-nums">{format(d, "d")}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Date selector */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={() => setDate(subDays(date, 1))}>
+        <Button variant="ghost" size="icon" aria-label="Día anterior" onClick={() => setDate(subDays(date, 1))}>
           <ChevronLeft className="h-6 w-6" />
         </Button>
         <div className="text-center">
@@ -227,7 +261,7 @@ export default function MealPlanPage() {
           </p>
           <p className="text-sm text-muted-foreground">{format(date, "d 'de' MMMM", { locale: es })}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setDate(addDays(date, 1))}>
+        <Button variant="ghost" size="icon" aria-label="Día siguiente" onClick={() => setDate(addDays(date, 1))}>
           <ChevronRight className="h-6 w-6" />
         </Button>
       </div>

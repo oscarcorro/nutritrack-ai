@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { useCreateFoodLog } from "@/hooks/use-food-log"
+import { useQuery } from "@tanstack/react-query"
+import { supabase } from "@/integrations/supabase/client"
+import { useAuth } from "@/contexts/AuthContext"
 import { useAnalyzeFood, type AnalyzedFood } from "@/hooks/use-ai"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -119,7 +122,37 @@ function ManualEntryForm({
 
 export default function LogMealPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
   const createFoodLog = useCreateFoodLog()
+
+  // Recent distinct meals (last 5)
+  const { data: recentMeals } = useQuery({
+    queryKey: ["recent-food-log", user?.id],
+    queryFn: async () => {
+      if (!user) return [] as string[]
+      const { data, error } = await supabase
+        .from("food_log")
+        .select("meal_name, logged_at")
+        .eq("user_id", user.id)
+        .order("logged_at", { ascending: false })
+        .limit(30)
+      if (error) throw error
+      const seen = new Set<string>()
+      const out: string[] = []
+      for (const row of (data ?? []) as Array<{ meal_name: string }>) {
+        const name = (row.meal_name || "").trim()
+        if (!name) continue
+        const key = name.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push(name)
+        if (out.length >= 5) break
+      }
+      return out
+    },
+    enabled: !!user,
+  })
   const analyzeFood = useAnalyzeFood()
   const [saving, setSaving] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -149,6 +182,26 @@ export default function LogMealPage() {
     // autoscroll
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages])
+
+  // Read preselected method from navigation state
+  const handledMethodRef = useRef(false)
+  useEffect(() => {
+    if (handledMethodRef.current) return
+    const method = (location.state as { method?: "photo" | "audio" | "text" } | null)?.method
+    if (!method) return
+    handledMethodRef.current = true
+    if (method === "photo") {
+      // Slight delay so the input is mounted
+      setTimeout(() => fileInputRef.current?.click(), 100)
+    } else if (method === "audio") {
+      setTimeout(() => startRecording(), 100)
+    } else if (method === "text") {
+      setTimeout(() => textareaRef.current?.focus(), 100)
+    }
+    // Clear state so refresh doesn't re-trigger
+    navigate(location.pathname, { replace: true, state: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Autosize textarea
   useEffect(() => {
@@ -334,9 +387,29 @@ export default function LogMealPage() {
               </div>
               <div className="max-w-[90%] flex-1">
                 {m.kind === "analyzing" && (
-                  <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 inline-flex items-center gap-2 nt-pulse-soft">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span className="text-base">Analizando...</span>
+                  <div className="space-y-2">
+                    <div className="rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 inline-flex items-center gap-2 nt-pulse-soft">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-base">Analizando</span>
+                      <span className="inline-flex gap-0.5" aria-hidden>
+                        <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1 h-1 rounded-full bg-primary animate-bounce" />
+                      </span>
+                    </div>
+                    <Card className="animate-pulse">
+                      <CardContent className="p-3 space-y-3">
+                        <div className="h-4 w-2/3 rounded bg-secondary" />
+                        <div className="h-9 w-full rounded bg-secondary" />
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="h-9 rounded bg-secondary" />
+                          <div className="h-9 rounded bg-secondary" />
+                          <div className="h-9 rounded bg-secondary" />
+                          <div className="h-9 rounded bg-secondary" />
+                        </div>
+                        <div className="h-10 w-full rounded bg-secondary" />
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
                 {m.kind === "error" && (
@@ -363,6 +436,28 @@ export default function LogMealPage() {
           )
         })}
       </div>
+
+      {/* Recientes */}
+      {recentMeals && recentMeals.length > 0 && (
+        <div className="pt-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">Recientes</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {recentMeals.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => {
+                  setTextInput(name)
+                  setTimeout(() => textareaRef.current?.focus(), 0)
+                }}
+                className="shrink-0 rounded-full border border-border bg-secondary/60 hover:bg-secondary px-3 min-h-[40px] text-sm font-medium"
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Composer */}
       <div className="sticky bottom-0 bg-background pt-2">

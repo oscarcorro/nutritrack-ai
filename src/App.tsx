@@ -6,6 +6,7 @@ import { MealPlanGenerationProvider } from "@/contexts/MealPlanGenerationContext
 import { Toaster } from "@/components/ui/toaster"
 import { MobileLayout } from "@/components/layout/MobileLayout"
 import { ProtectedRoute } from "@/components/shared/ProtectedRoute"
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 
 import AuthPage from "@/pages/AuthPage"
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"))
@@ -47,6 +48,7 @@ function App() {
         <AuthProvider>
           <MealPlanGenerationProvider>
           <Suspense fallback={<PageSkeleton />}>
+          <ErrorBoundary>
           <Routes>
             {/* Public */}
             <Route path="/auth" element={<AuthPage />} />
@@ -81,6 +83,7 @@ function App() {
             <Route path="/" element={<Navigate to="/inicio" replace />} />
             <Route path="*" element={<Navigate to="/inicio" replace />} />
           </Routes>
+          </ErrorBoundary>
           </Suspense>
           <Toaster />
           </MealPlanGenerationProvider>

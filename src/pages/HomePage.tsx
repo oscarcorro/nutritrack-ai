@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
-import { Plus, Scale, UtensilsCrossed } from "lucide-react"
+import { Plus, Scale, UtensilsCrossed, Camera, Mic, Type } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -88,12 +88,44 @@ export default function HomePage() {
     )
   }, [foodLogs])
 
-  // Find next upcoming meal from plan
+  // Default suggested time per meal type (Madrid schedule)
+  const MEAL_DEFAULT_TIME: Record<string, string> = {
+    breakfast: "08:30",
+    morning_snack: "11:00",
+    lunch: "14:00",
+    afternoon_snack: "17:30",
+    dinner: "21:00",
+  }
+
+  // Current time in Europe/Madrid as HH:MM
+  const madridNowHHMM = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat("es-ES", {
+        timeZone: "Europe/Madrid",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date())
+    } catch {
+      const d = new Date()
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+    }
+  }, [])
+
+  // Find next upcoming meal whose suggested time > now
   const nextMeal = useMemo(() => {
     if (!mealPlan?.items?.length) return null
     const loggedMealTypes = new Set((foodLogs || []).map((l) => l.meal_type))
-    return mealPlan.items.find((item) => !loggedMealTypes.has(item.meal_type)) || null
-  }, [mealPlan, foodLogs])
+    const upcoming = mealPlan.items
+      .filter((item) => !loggedMealTypes.has(item.meal_type))
+      .map((item) => ({ item, time: MEAL_DEFAULT_TIME[item.meal_type] || "23:59" }))
+      .sort((a, b) => a.time.localeCompare(b.time))
+      .find((x) => x.time > madridNowHHMM)
+    return upcoming || null
+  }, [mealPlan, foodLogs, madridNowHHMM])
+
+  const allMealsDone = !!mealPlan?.items?.length && !nextMeal
+    && mealPlan.items.every((it) => (foodLogs || []).some((l) => l.meal_type === it.meal_type))
 
   const [editingLog, setEditingLog] = useState<FoodLog | null>(null)
 
@@ -130,6 +162,22 @@ export default function HomePage() {
           Hola, {profile?.display_name?.split(" ")[0] || "amigo"}
         </h2>
       </div>
+
+      {/* Calorie ring empty state */}
+      {!goal && (
+        <Card data-tour="ring">
+          <CardContent className="py-8 text-center space-y-3">
+            <div className="mx-auto w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+              <Scale className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <p className="text-base font-medium">Aún no tienes objetivos definidos</p>
+            <p className="text-sm text-muted-foreground">Define tus objetivos en Perfil para ver tu anillo de calorías.</p>
+            <Button asChild size="lg" className="mt-2">
+              <Link to="/perfil">Ir a Perfil</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Calorie ring */}
       {goal && (
@@ -183,14 +231,34 @@ export default function HomePage() {
       )}
 
       {/* Quick actions */}
-      <div data-tour="quick-actions" className="grid grid-cols-2 gap-3">
-        <Button asChild size="lg" className="h-14 text-base">
+      <div data-tour="quick-actions" className="space-y-3">
+        <Button asChild size="lg" className="h-14 text-base w-full">
           <Link to="/registrar">
             <Plus className="h-5 w-5 mr-2" />
             Registrar comida
           </Link>
         </Button>
-        <Button asChild variant="outline" size="lg" className="h-14 text-base">
+        <div className="grid grid-cols-3 gap-2">
+          <Button asChild variant="outline" size="lg" className="h-14 text-sm flex-col gap-0.5">
+            <Link to="/registrar" state={{ method: "photo" }}>
+              <Camera className="h-5 w-5" />
+              <span>Foto</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="h-14 text-sm flex-col gap-0.5">
+            <Link to="/registrar" state={{ method: "audio" }}>
+              <Mic className="h-5 w-5" />
+              <span>Audio</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="h-14 text-sm flex-col gap-0.5">
+            <Link to="/registrar" state={{ method: "text" }}>
+              <Type className="h-5 w-5" />
+              <span>Texto</span>
+            </Link>
+          </Button>
+        </div>
+        <Button asChild variant="outline" size="lg" className="h-14 text-base w-full">
           <Link to="/progreso">
             <Scale className="h-5 w-5 mr-2" />
             Pesar
@@ -204,19 +272,26 @@ export default function HomePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base text-muted-foreground flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4" />
-              Proxima comida
+              Próxima comida
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-lg font-semibold">{nextMeal.meal_name}</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-lg font-semibold truncate">{nextMeal.item.meal_name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {MEAL_TYPE_ICONS[nextMeal.meal_type]} {MEAL_TYPE_LABELS[nextMeal.meal_type]}
+                  {MEAL_TYPE_ICONS[nextMeal.item.meal_type]} {MEAL_TYPE_LABELS[nextMeal.item.meal_type]} · {nextMeal.time}
                 </p>
               </div>
-              <Badge variant="secondary">{nextMeal.calories ? formatCalories(nextMeal.calories) : "--"}</Badge>
+              <Badge variant="secondary">{nextMeal.item.calories ? formatCalories(nextMeal.item.calories) : "--"}</Badge>
             </div>
+          </CardContent>
+        </Card>
+      )}
+      {allMealsDone && (
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="py-4 text-center">
+            <p className="text-base font-medium text-green-800">Has completado todas las comidas de hoy</p>
           </CardContent>
         </Card>
       )}

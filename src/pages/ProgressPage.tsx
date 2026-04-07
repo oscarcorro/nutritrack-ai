@@ -10,13 +10,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { calculateBMI, getBMICategory, formatCalories } from "@/lib/nutrition"
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts"
-import { Loader2, TrendingDown, Target, Activity, Flame } from "lucide-react"
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from "recharts"
+import { Loader2, TrendingDown, Target, Activity, Flame, Download } from "lucide-react"
 import { format, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 
+// Madrid-timezone YYYY-MM-DD for a given Date
+const madridDateStr = (d: Date): string => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d)
+  return parts // en-CA gives YYYY-MM-DD
+}
+const madridShort = (d: Date): string =>
+  new Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit" }).format(d)
+
 export default function ProgressPage() {
   const { data: weightLogs, isLoading: weightLoading } = useWeightLog(30)
+  const { data: weightLogs90 } = useWeightLog(90)
   const { data: goal } = useCurrentGoal()
   const { data: profile } = useProfile()
   const createWeight = useCreateWeightLog()
@@ -29,13 +43,22 @@ export default function ProgressPage() {
   const todayStr = format(new Date(), "yyyy-MM-dd")
   const { data: foodLogs } = useFoodLog(`${sevenDaysAgo}T00:00:00`, `${todayStr}T23:59:59`)
 
-  // Weight chart data
+  // Fetch 90 days food log for export
+  const ninetyDaysAgo = format(subDays(new Date(), 89), "yyyy-MM-dd")
+  const { data: foodLogs90 } = useFoodLog(`${ninetyDaysAgo}T00:00:00`, `${todayStr}T23:59:59`)
+
+  // Weight chart data with 7-day moving average
   const weightChartData = useMemo(() => {
     if (!weightLogs) return []
-    return weightLogs.map((log) => ({
-      date: format(new Date(log.measured_at), "dd/MM"),
-      peso: log.weight_kg,
-    }))
+    return weightLogs.map((log, idx) => {
+      const window = weightLogs.slice(Math.max(0, idx - 6), idx + 1)
+      const avg = window.reduce((s, l) => s + l.weight_kg, 0) / window.length
+      return {
+        date: madridShort(new Date(log.measured_at)),
+        peso: log.weight_kg,
+        media: Math.round(avg * 10) / 10,
+      }
+    })
   }, [weightLogs])
 
   // Calorie chart data
@@ -61,18 +84,70 @@ export default function ProgressPage() {
   const currentWeight = weightLogs?.length ? weightLogs[weightLogs.length - 1].weight_kg : profile?.weight_kg || 0
   const bmi = currentWeight && profile?.height_cm ? calculateBMI(currentWeight, profile.height_cm) : 0
 
-  // Streak: consecutive days with food logs
+  // Streak: consecutive days with at least one food_log entry up to today (Madrid)
   const streak = useMemo(() => {
-    if (!foodLogs) return 0
+    const source = foodLogs90 || foodLogs
+    if (!source) return 0
+    const daysWithLog = new Set<string>()
+    source.forEach((l) => {
+      daysWithLog.add(madridDateStr(new Date(l.logged_at)))
+    })
     let count = 0
-    for (let i = 0; i <= 6; i++) {
-      const d = format(subDays(new Date(), i), "yyyy-MM-dd")
-      const hasLog = foodLogs.some((l) => l.logged_at.startsWith(d))
-      if (hasLog) count++
-      else if (i > 0) break // allow today to be missing
+    for (let i = 0; i < 365; i++) {
+      const d = madridDateStr(subDays(new Date(), i))
+      if (daysWithLog.has(d)) {
+        count++
+      } else if (i === 0) {
+        // allow today to be missing without breaking streak
+        continue
+      } else {
+        break
+      }
     }
     return count
-  }, [foodLogs])
+  }, [foodLogs, foodLogs90])
+
+  // Adherencia semanal: % de últimos 7 días con kcal dentro de ±10% del objetivo
+  const adherencia = useMemo(() => {
+    if (!foodLogs || !goal?.daily_calories_target) return { days: 0, pct: 0 }
+    const target = goal.daily_calories_target
+    const min = target * 0.9
+    const max = target * 1.1
+    const byDate: Record<string, number> = {}
+    for (let i = 6; i >= 0; i--) {
+      byDate[madridDateStr(subDays(new Date(), i))] = 0
+    }
+    foodLogs.forEach((l) => {
+      const d = madridDateStr(new Date(l.logged_at))
+      if (byDate[d] !== undefined) byDate[d] += l.calories || 0
+    })
+    const days = Object.values(byDate).filter((kcal) => kcal >= min && kcal <= max).length
+    return { days, pct: Math.round((days / 7) * 100) }
+  }, [foodLogs, goal?.daily_calories_target])
+
+  const handleExportCSV = () => {
+    const rows: string[] = ["tipo,fecha,valor,unidad,detalle"]
+    ;(weightLogs90 || []).forEach((w) => {
+      rows.push(`peso,${w.measured_at},${w.weight_kg},kg,${(w.notes || "").replace(/[",\n]/g, " ")}`)
+    })
+    ;(foodLogs90 || []).forEach((l) => {
+      const fecha = madridDateStr(new Date(l.logged_at))
+      const detalle = `${(l.meal_name || "").replace(/[",\n]/g, " ")} P${Math.round(l.protein_g || 0)}g C${Math.round(l.carbs_g || 0)}g G${Math.round(l.fat_g || 0)}g`
+      rows.push(`comida,${fecha},${Math.round(l.calories || 0)},kcal,${detalle}`)
+    })
+    const csv = rows.join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    const stamp = madridDateStr(new Date()).replace(/-/g, "")
+    a.href = url
+    a.download = `nutritrack-${stamp}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success("CSV exportado")
+  }
 
   const handleAddWeight = async () => {
     const weight = parseFloat(newWeight)
@@ -143,7 +218,9 @@ export default function ProgressPage() {
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                 <YAxis domain={["dataMin - 2", "dataMax + 2"]} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="peso" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="peso" name="Peso" stroke="#16a34a" strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="media" name="Media 7d" stroke="#2563eb" strokeWidth={2} strokeDasharray="4 4" dot={false} />
                 {goal?.target_weight_kg && (
                   <ReferenceLine y={goal.target_weight_kg} stroke="#f59e0b" strokeDasharray="5 5" label="Objetivo" />
                 )}
@@ -180,6 +257,23 @@ export default function ProgressPage() {
         </CardContent>
       </Card>
 
+      {/* Adherencia semanal */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Adherencia semanal</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center">
+          <p className="text-4xl font-bold text-primary">{adherencia.pct}%</p>
+          <p className="text-sm text-muted-foreground mt-1">{adherencia.days} de 7 días en objetivo</p>
+        </CardContent>
+      </Card>
+
+      {/* Export CSV */}
+      <Button variant="outline" size="lg" className="w-full" onClick={handleExportCSV}>
+        <Download className="h-5 w-5 mr-2" />
+        Exportar CSV
+      </Button>
+
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-3">
         <Card>
@@ -208,7 +302,7 @@ export default function ProgressPage() {
           <CardContent className="p-4 text-center">
             <Flame className="h-6 w-6 mx-auto mb-1 text-orange-500" />
             <p className="text-xs text-muted-foreground">Racha</p>
-            <p className="text-xl font-bold">{streak} días</p>
+            <p className="text-xl font-bold flex items-center justify-center gap-1"><Flame className="h-4 w-4 text-orange-500" />{streak} días</p>
           </CardContent>
         </Card>
       </div>

@@ -76,8 +76,39 @@ export default function OnboardingPage() {
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([])
   const [dietNotes, setDietNotes] = useState("")
 
+  // Target weight (used for ±60% validation against current weight)
+  const [targetWeight, setTargetWeight] = useState("")
+
   const totalSteps = 4
   const progressPercent = (step / totalSteps) * 100
+
+  // Inline validation errors
+  const numHeightVal = parseFloat(heightCm)
+  const numWeightVal = parseFloat(weightKg)
+  const ageVal = birthDate ? calculateAge(birthDate) : 0
+  const numTargetVal = parseFloat(targetWeight)
+
+  const heightError = heightCm && (isNaN(numHeightVal) || numHeightVal < 100 || numHeightVal > 230)
+    ? "Altura debe estar entre 100 y 230 cm"
+    : ""
+  const weightError = weightKg && (isNaN(numWeightVal) || numWeightVal < 30 || numWeightVal > 300)
+    ? "Peso debe estar entre 30 y 300 kg"
+    : ""
+  const ageError = birthDate && (ageVal < 14 || ageVal > 100)
+    ? "Edad debe estar entre 14 y 100 años"
+    : ""
+  const targetError = targetWeight && numWeightVal && (
+    isNaN(numTargetVal) ||
+    numTargetVal < numWeightVal * 0.4 ||
+    numTargetVal > numWeightVal * 1.6
+  )
+    ? "El peso objetivo debe estar dentro de ±60% de tu peso actual"
+    : ""
+
+  const step1Valid = !!(name && gender && birthDate && heightCm && weightKg && activityLevel) &&
+    !heightError && !weightError && !ageError
+  const step2Valid = !!goalType && !targetError
+  const isStepValid = step === 1 ? step1Valid : step === 2 ? step2Valid : true
 
   // Calculations for step 4
   const numWeight = parseFloat(weightKg)
@@ -113,22 +144,20 @@ export default function OnboardingPage() {
 
   const validateStep = () => {
     if (step === 1) {
-      if (!name || !gender || !birthDate || !heightCm || !weightKg || !activityLevel) {
-        toast.error("Completa todos los campos")
-        return false
-      }
-      if (parseFloat(heightCm) < 100 || parseFloat(heightCm) > 250) {
-        toast.error("Altura debe estar entre 100 y 250 cm")
-        return false
-      }
-      if (parseFloat(weightKg) < 30 || parseFloat(weightKg) > 300) {
-        toast.error("Peso debe estar entre 30 y 300 kg")
+      if (!step1Valid) {
+        toast.error("Revisa los datos del formulario")
         return false
       }
     }
-    if (step === 2 && !goalType) {
-      toast.error("Selecciona un objetivo")
-      return false
+    if (step === 2) {
+      if (!goalType) {
+        toast.error("Selecciona un objetivo")
+        return false
+      }
+      if (targetError) {
+        toast.error(targetError)
+        return false
+      }
     }
     return true
   }
@@ -162,7 +191,9 @@ export default function OnboardingPage() {
       // Save goals
       await createGoal.mutateAsync({
         starting_weight_kg: numWeight,
-        target_weight_kg: goalType === "lose_weight" ? idealWeight : goalType === "gain_muscle" ? numWeight + 5 : numWeight,
+        target_weight_kg: numTargetVal && !isNaN(numTargetVal)
+          ? numTargetVal
+          : goalType === "lose_weight" ? idealWeight : goalType === "gain_muscle" ? numWeight + 5 : numWeight,
         ideal_weight_kg: idealWeight,
         daily_calories_target: calorieTarget,
         protein_g: macros!.protein_g,
@@ -266,15 +297,18 @@ export default function OnboardingPage() {
           <div className="space-y-2">
             <Label htmlFor="birth">Fecha de nacimiento</Label>
             <Input id="birth" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+            {ageError && <p className="text-sm text-destructive">{ageError}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="height">Altura (cm)</Label>
-              <Input id="height" type="number" placeholder="175" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} />
+              <Input id="height" type="number" placeholder="175" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} aria-invalid={!!heightError} />
+              {heightError && <p className="text-sm text-destructive">{heightError}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="weight">Peso (kg)</Label>
-              <Input id="weight" type="number" placeholder="80" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+              <Input id="weight" type="number" placeholder="80" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} aria-invalid={!!weightError} />
+              {weightError && <p className="text-sm text-destructive">{weightError}</p>}
             </div>
           </div>
           <div className="space-y-2">
@@ -340,6 +374,20 @@ export default function OnboardingPage() {
               </p>
             </div>
           )}
+          {goalType && goalType !== "maintain" && (
+            <div className="space-y-2">
+              <Label htmlFor="target-weight">Peso objetivo (kg)</Label>
+              <Input
+                id="target-weight"
+                type="number"
+                placeholder={numWeightVal ? String(Math.round(numWeightVal)) : "70"}
+                value={targetWeight}
+                onChange={(e) => setTargetWeight(e.target.value)}
+                aria-invalid={!!targetError}
+              />
+              {targetError && <p className="text-sm text-destructive">{targetError}</p>}
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Días de ejercicio por semana: {exerciseDays}</Label>
             <Slider
@@ -399,7 +447,7 @@ export default function OnboardingPage() {
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFoodTag() } }}
                 className="flex-1"
               />
-              <Button type="button" onClick={addFoodTag} size="icon">+</Button>
+              <Button type="button" onClick={addFoodTag} size="icon" aria-label="Añadir alimento">+</Button>
             </div>
           </div>
 
@@ -503,7 +551,7 @@ export default function OnboardingPage() {
           </Button>
         )}
         {step < totalSteps ? (
-          <Button size="lg" onClick={nextStep} className="flex-1">
+          <Button size="lg" onClick={nextStep} disabled={!isStepValid} className="flex-1">
             Siguiente <ChevronRight className="h-5 w-5 ml-1" />
           </Button>
         ) : (

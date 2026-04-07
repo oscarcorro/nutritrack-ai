@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { useUpdateFoodLog, useDeleteFoodLog } from "@/hooks/use-food-log"
+import { useUpdateFoodLog, useDeleteFoodLog, useCreateFoodLog } from "@/hooks/use-food-log"
 import type { FoodLog } from "@/integrations/supabase/types"
 
 type Props = {
@@ -22,6 +22,7 @@ const num = (v: string) => {
 export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
   const updateLog = useUpdateFoodLog()
   const deleteLog = useDeleteFoodLog()
+  const createLog = useCreateFoodLog()
 
   const [mealName, setMealName] = useState("")
   const [calories, setCalories] = useState("")
@@ -86,9 +87,41 @@ export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
 
   const handleDelete = async () => {
     if (!confirm("¿Eliminar este registro?")) return
+    // Snapshot original row so we can re-insert on undo
+    const snapshot = log
     try {
-      await deleteLog.mutateAsync(log.id)
-      toast.success("Registro eliminado")
+      await deleteLog.mutateAsync(snapshot.id)
+      toast.success("Registro eliminado", {
+        action: {
+          label: "Deshacer",
+          onClick: async () => {
+            try {
+              await createLog.mutateAsync({
+                logged_at: snapshot.logged_at,
+                meal_type: snapshot.meal_type,
+                input_method: snapshot.input_method,
+                raw_text: snapshot.raw_text,
+                photo_url: snapshot.photo_url,
+                audio_url: snapshot.audio_url,
+                meal_name: snapshot.meal_name,
+                description: snapshot.description,
+                items: snapshot.items,
+                calories: snapshot.calories,
+                protein_g: snapshot.protein_g,
+                carbs_g: snapshot.carbs_g,
+                fat_g: snapshot.fat_g,
+                fiber_g: snapshot.fiber_g,
+                meal_plan_item_id: snapshot.meal_plan_item_id,
+                ai_confidence: snapshot.ai_confidence,
+                ai_model: snapshot.ai_model,
+              })
+              toast.success("Registro restaurado")
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "No se pudo restaurar")
+            }
+          },
+        },
+      })
       onOpenChange(false)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al eliminar")
@@ -155,6 +188,7 @@ export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
             className="text-destructive border-destructive/30"
             onClick={handleDelete}
             disabled={deleteLog.isPending}
+            aria-label="Eliminar registro"
           >
             {deleteLog.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </Button>

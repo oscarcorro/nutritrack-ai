@@ -13,7 +13,8 @@
   --color-secondary: #f1efe9;
   --color-secondary-foreground: #1c1917;
   --color-muted: #f1efe9;
-  --color-muted-foreground: #6b6a63;
+  /* AA contrast on #fbfaf7: previous #6b6a63 ≈ 4.45:1 (fail). Darkened to #595851 ≈ 5.6:1 (pass). */
+  --color-muted-foreground: #595851;
   --color-accent: #e8f5ed;
   --color-accent-foreground: #0e4f2c;
   --color-destructive: #e0453a;
@@ -159,6 +160,17 @@ button:active, a:active { transform: scale(0.97); }
 .nt-hairline {
   background: linear-gradient(90deg, transparent, var(--color-border), transparent);
   height: 1px;
+}
+
+/* Supplemental focus ring — works alongside shadcn focus styles for consistent visibility */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useMemo } from "react"
 import { supabase } from "@/integrations/supabase/client"
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile"
 import { useCurrentGoal, useCreateGoal } from "@/hooks/use-goals"
@@ -95,6 +95,20 @@ export default function ProfilePage() {
     setEditMealSchedule({ ...DEFAULT_MEAL_TIMES, ...(profile.meal_schedule || {}) } as Record<MealType, string>)
     setEditOpen(true)
   }
+
+  // Live preview: recompute calorie target from edited fields + current goal's deficit
+  const previewCalories = useMemo(() => {
+    const w = parseFloat(editWeight)
+    const h = parseFloat(editHeight)
+    if (!w || !h || !editBirthDate || !editGender || !editActivity) return null
+    const age = calculateAge(editBirthDate)
+    if (!age || age <= 0) return null
+    const bmr = calculateBMR(w, h, age, editGender as Gender)
+    const tdee = calculateTDEE(bmr, editActivity as ActivityLevel)
+    const gType = (goal?.goal_type as GoalType) || "maintain"
+    const intensity = (goal?.intensity as GoalIntensity) || "moderate"
+    return calculateCalorieTarget(tdee, gType, intensity, editGender as Gender)
+  }, [editWeight, editHeight, editBirthDate, editGender, editActivity, goal?.goal_type, goal?.intensity])
 
   const handleSaveEdit = async () => {
     if (!editName) {
@@ -453,7 +467,7 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Nombre</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <Input aria-label="Nombre" value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -469,17 +483,17 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2">
                 <Label>Fecha de nacimiento</Label>
-                <Input type="date" value={editBirthDate} onChange={(e) => setEditBirthDate(e.target.value)} />
+                <Input aria-label="Fecha de nacimiento" type="date" value={editBirthDate} onChange={(e) => setEditBirthDate(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Altura (cm)</Label>
-                <Input type="number" value={editHeight} onChange={(e) => setEditHeight(e.target.value)} />
+                <Input aria-label="Altura en centímetros" type="number" value={editHeight} onChange={(e) => setEditHeight(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Peso (kg)</Label>
-                <Input type="number" value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
+                <Input aria-label="Peso en kilogramos" type="number" value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
@@ -496,11 +510,11 @@ export default function ProfilePage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Días de ejercicio/semana</Label>
-                <Input type="number" min="0" max="7" value={editExerciseDays} onChange={(e) => setEditExerciseDays(e.target.value)} />
+                <Input aria-label="Días de ejercicio por semana" type="number" min="0" max="7" value={editExerciseDays} onChange={(e) => setEditExerciseDays(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Tipo de ejercicio</Label>
-                <Input value={editExerciseDesc} onChange={(e) => setEditExerciseDesc(e.target.value)} placeholder="Ej: caminar, pesas" />
+                <Input aria-label="Tipo de ejercicio" value={editExerciseDesc} onChange={(e) => setEditExerciseDesc(e.target.value)} placeholder="Ej: caminar, pesas" />
               </div>
             </div>
             <div className="space-y-2">
@@ -510,6 +524,7 @@ export default function ProfilePage() {
                   <div key={mt} className="space-y-1">
                     <p className="text-xs text-muted-foreground">{MEAL_SCHEDULE_LABELS[mt]}</p>
                     <Input
+                      aria-label={`Hora de ${MEAL_SCHEDULE_LABELS[mt]}`}
                       type="time"
                       value={editMealSchedule[mt] || ""}
                       onChange={(e) => setEditMealSchedule((s) => ({ ...s, [mt]: e.target.value }))}
@@ -518,9 +533,17 @@ export default function ProfilePage() {
                 ))}
               </div>
             </div>
+            {previewCalories !== null && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <p className="text-sm text-muted-foreground">Nuevo objetivo estimado</p>
+                <p className="text-lg font-bold text-primary">Nuevo objetivo: {previewCalories} kcal/día</p>
+                <p className="text-xs text-muted-foreground">Se aplicará al guardar (revisa también el objetivo).</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Notas de salud / dieta</Label>
               <Textarea
+                aria-label="Notas de salud y dieta"
                 value={editHealthNotes}
                 onChange={(e) => setEditHealthNotes(e.target.value)}
                 placeholder="Alergias, intolerancias, condiciones medicas, preferencias dieteticas..."
@@ -582,11 +605,11 @@ export default function ProfilePage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Peso actual (kg)</Label>
-                <Input type="number" value={goalStartWeight} onChange={(e) => setGoalStartWeight(e.target.value)} />
+                <Input aria-label="Peso actual en kilogramos" type="number" value={goalStartWeight} onChange={(e) => setGoalStartWeight(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Peso objetivo (kg)</Label>
-                <Input type="number" value={goalTargetWeight} onChange={(e) => setGoalTargetWeight(e.target.value)} />
+                <Input aria-label="Peso objetivo en kilogramos" type="number" value={goalTargetWeight} onChange={(e) => setGoalTargetWeight(e.target.value)} />
               </div>
             </div>
 
@@ -596,25 +619,25 @@ export default function ProfilePage() {
 
             <div className="space-y-2">
               <Label>Calorías/día</Label>
-              <Input type="number" value={goalCalories} onChange={(e) => setGoalCalories(e.target.value)} />
+              <Input aria-label="Calorías por día" type="number" value={goalCalories} onChange={(e) => setGoalCalories(e.target.value)} />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label>Proteína (g)</Label>
-                <Input type="number" value={goalProtein} onChange={(e) => setGoalProtein(e.target.value)} />
+                <Input aria-label="Proteína en gramos" type="number" value={goalProtein} onChange={(e) => setGoalProtein(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Carbos (g)</Label>
-                <Input type="number" value={goalCarbs} onChange={(e) => setGoalCarbs(e.target.value)} />
+                <Input aria-label="Carbohidratos en gramos" type="number" value={goalCarbs} onChange={(e) => setGoalCarbs(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Grasa (g)</Label>
-                <Input type="number" value={goalFat} onChange={(e) => setGoalFat(e.target.value)} />
+                <Input aria-label="Grasa en gramos" type="number" value={goalFat} onChange={(e) => setGoalFat(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Comidas al dia</Label>
-              <Input type="number" min="3" max="6" value={goalMeals} onChange={(e) => setGoalMeals(e.target.value)} />
+              <Input aria-label="Comidas al día" type="number" min="3" max="6" value={goalMeals} onChange={(e) => setGoalMeals(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
