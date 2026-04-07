@@ -3,8 +3,22 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { execSync } from 'child_process'
+
+const commitSha = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    return 'dev'
+  }
+})()
+const buildTime = new Date().toISOString().slice(0, 16).replace('T', ' ')
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(commitSha),
+    __APP_BUILD_TIME__: JSON.stringify(buildTime),
+  },
   plugins: [
     react(),
     tailwindcss(),

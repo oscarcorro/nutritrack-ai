@@ -439,6 +439,11 @@ export default function ProfilePage() {
         Cerrar sesion
       </Button>
 
+      {/* Version badge */}
+      <p className="text-center text-[11px] text-muted-foreground tabular-nums">
+        v{__APP_VERSION__} · {__APP_BUILD_TIME__}
+      </p>
+
       {/* Edit profile dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
