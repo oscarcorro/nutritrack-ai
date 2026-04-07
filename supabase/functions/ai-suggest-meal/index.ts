@@ -5,7 +5,7 @@
 // it into meal_plan_items (creating the meal_plan row if needed).
 
 import { corsHeaders } from "../_shared/cors.ts"
-import { callAnthropic, extractJSON, WEB_SEARCH_TOOL } from "../_shared/anthropic.ts"
+import { callAnthropic, extractJSON } from "../_shared/anthropic.ts"
 import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from "../_shared/supabase.ts"
 
 type MealType = "breakfast" | "morning_snack" | "lunch" | "afternoon_snack" | "dinner"
@@ -28,7 +28,7 @@ interface SuggestedMeal {
   prep_time_min: number
 }
 
-const MODEL = "claude-sonnet-4-6"
+const MODEL = "claude-sonnet-4-5"
 
 const SYSTEM = `Eres un nutricionista. Sugiere UNA sola comida especifica para un slot (desayuno/comida/cena/snack).
 Debe encajar en los macros restantes del dia y respetar preferencias, alergias, intolerancias y despensa del usuario.
@@ -174,7 +174,6 @@ Puede variar un 10-15% si eso hace la comida mas realista.`,
       ],
       max_tokens: 1024,
       temperature: 0.9,
-      tools: [WEB_SEARCH_TOOL],
     })
 
     const parsed = extractJSON<SuggestedMeal>(text)

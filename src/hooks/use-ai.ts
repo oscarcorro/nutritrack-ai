@@ -17,8 +17,21 @@ export interface AnalyzedFood {
 
 async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(name, { body })
-  if (error) throw error
-  if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error)
+  if (error) {
+    // supabase-js wraps non-2xx responses in FunctionsHttpError and hides the body.
+    // Try to read the underlying response so the user sees the real reason.
+    try {
+      const resp = (error as { context?: Response }).context
+      if (resp && typeof resp.json === "function") {
+        const j = (await resp.clone().json()) as { error?: string }
+        if (j?.error) throw new Error(`${name}: ${j.error}`)
+      }
+    } catch (inner) {
+      if (inner instanceof Error && inner.message.startsWith(name)) throw inner
+    }
+    throw new Error(`${name}: ${error.message ?? "Edge function failed"}`)
+  }
+  if ((data as { error?: string })?.error) throw new Error(`${name}: ${(data as { error: string }).error}`)
   return data as T
 }
 

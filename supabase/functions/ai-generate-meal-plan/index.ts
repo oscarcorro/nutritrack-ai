@@ -29,7 +29,7 @@ interface GeneratedPlan {
   meals: GeneratedMeal[]
 }
 
-const MODEL = "claude-sonnet-4-6"
+const MODEL = "claude-sonnet-4-5"
 
 const SYSTEM = `Eres un nutricionista deportivo basado en evidencia cientifica. Tus planes deben ser efectivos, sostenibles y respaldados por la literatura (Helms, Aragon, Schoenfeld, Trexler, ISSN position stands).
 

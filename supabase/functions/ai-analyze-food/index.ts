@@ -3,7 +3,7 @@
 // Returns: { meal_name, description, items, calories, protein_g, carbs_g, fat_g, fiber_g, confidence, model }
 
 import { corsHeaders } from "../_shared/cors.ts"
-import { callAnthropic, extractJSON, AnthropicContentBlock, WEB_SEARCH_TOOL } from "../_shared/anthropic.ts"
+import { callAnthropic, extractJSON, AnthropicContentBlock } from "../_shared/anthropic.ts"
 import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from "../_shared/supabase.ts"
 
 interface RequestBody {
@@ -19,7 +19,7 @@ PRIORIDAD MAXIMA — DESPENSA DEL USUARIO:
 Antes de estimar nada, revisa la seccion "DESPENSA / NEVERA DEL USUARIO". Si alguno de los alimentos que el usuario dice haber comido coincide (por nombre o marca) con un item de la despensa que tenga "MACROS EXACTOS por 100g/ml", USA ESOS VALORES EXACTOS escalados por la cantidad consumida. No estimes, no busques en web: multiplica. Ej: si la despensa dice "Yogur Pastoret · MACROS EXACTOS por 100g: 95 kcal, P 4g, C 4g, G 7g, F 0g" y el usuario dice "150g de yogur Pastoret", calorias = 95*1.5 = 142.5. Esto es lo mas preciso posible y debes preferirlo siempre.
 
 Solo si NO hay match en la despensa:
-- Si el usuario menciona una marca concreta, usa web_search para valores oficiales.
+- Para marcas conocidas, usa tu conocimiento de las etiquetas tipicas.
 - Para alimentos genericos, estima con conocimiento nutricional estandar.
 
 Estructura:
@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const model = hasImage ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001"
+    const model = hasImage ? "claude-sonnet-4-5" : "claude-haiku-4-5-20251001"
 
     const content: AnthropicContentBlock[] = []
     if (hasImage) {
@@ -86,7 +86,6 @@ Deno.serve(async (req: Request) => {
       messages: [{ role: "user", content }],
       max_tokens: 2048,
       temperature: 0.3,
-      tools: [WEB_SEARCH_TOOL],
     })
 
     const parsed = extractJSON<Record<string, unknown>>(text)

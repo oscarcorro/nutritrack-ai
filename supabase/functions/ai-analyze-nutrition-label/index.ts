@@ -33,7 +33,7 @@ interface Nutrition {
   serving_unit: "g" | "ml" | null
 }
 
-const MODEL = "claude-sonnet-4-6"
+const MODEL = "claude-sonnet-4-5"
 
 const SYSTEM = `Eres un experto en etiquetas nutricionales. Te paso una foto de un producto (o de su etiqueta) y debes extraer con precisión los valores nutricionales POR 100 g (o por 100 ml si es un liquido).
 
