@@ -692,7 +692,7 @@ export default function LogMealPage() {
   const isAnalyzing = analyzeFood.isPending || chatFood.isPending
 
   return (
-    <div className="flex flex-col h-[calc(100svh-9rem)]">
+    <div className="flex flex-col h-[calc(100svh-12rem)] overflow-hidden">
       <h2 className="text-2xl font-bold mb-3">Registrar comida</h2>
 
       {/* Chat scroll area */}
