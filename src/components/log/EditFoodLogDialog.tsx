@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -149,7 +150,6 @@ export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
   }
 
   const handleDelete = async () => {
-    if (!confirm("¿Eliminar este registro?")) return
     const snapshot = log
     try {
       await deleteLog.mutateAsync(snapshot.id)
@@ -279,9 +279,27 @@ export function EditFoodLogDialog({ log, open, onOpenChange }: Props) {
           </div>
         </div>
         <DialogFooter className="flex-row gap-2">
-          <Button variant="outline" className="text-destructive border-destructive/30" onClick={handleDelete} disabled={deleteLog.isPending} aria-label="Eliminar">
-            {deleteLog.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="text-destructive border-destructive/30" disabled={deleteLog.isPending} aria-label="Eliminar">
+                {deleteLog.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Eliminar registro</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Se eliminara "{mealName}". Podras deshacerlo desde la notificacion.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button className="flex-1" onClick={handleSave} disabled={updateLog.isPending}>
             {updateLog.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}

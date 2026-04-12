@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { EditFoodLogDialog } from "@/components/log/EditFoodLogDialog"
 import type { FoodLog } from "@/integrations/supabase/types"
 import { Pencil, Bookmark } from "lucide-react"
-import { addRecipe } from "@/lib/recipes"
+import { addRecipe, isRecipeSaved, deleteRecipeByName } from "@/lib/recipes"
 import { toast } from "sonner"
 import { Link } from "react-router-dom"
 import { useProfile } from "@/hooks/use-profile"
@@ -319,34 +319,31 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="space-y-1">
             {foodLogs.map((log) => {
-              const saveLogAsRecipe = (e: React.MouseEvent) => {
+              const saved = isRecipeSaved(log.meal_name)
+              const toggleRecipe = (e: React.MouseEvent) => {
                 e.stopPropagation()
-                const ings = Array.isArray(log.items)
-                  ? (log.items as Array<{ name?: string; quantity_g?: number } | string>).map((i) =>
-                      typeof i === "string"
-                        ? i
-                        : i.quantity_g
-                          ? `${i.name ?? ""} (${i.quantity_g} g)`
-                          : (i.name ?? ""),
-                    ).filter(Boolean)
-                  : []
-                addRecipe({
-                  name: log.meal_name,
-                  ingredients: ings,
-                  steps: [],
-                  kcal: Math.round(log.calories ?? 0),
-                })
-                toast.success("Guardado en Mis recetas")
+                if (saved) {
+                  deleteRecipeByName(log.meal_name)
+                  toast.success("Receta eliminada")
+                } else {
+                  const ings = Array.isArray(log.items)
+                    ? (log.items as Array<{ name?: string; quantity_g?: number } | string>).map((i) =>
+                        typeof i === "string" ? i : i.quantity_g ? `${i.name ?? ""} (${i.quantity_g} g)` : (i.name ?? "")
+                      ).filter(Boolean)
+                    : []
+                  addRecipe({ name: log.meal_name, ingredients: ings, steps: [], kcal: Math.round(log.calories ?? 0) })
+                  toast.success("Guardado en Mis recetas")
+                }
               }
               return (
                 <div
                   key={log.id}
-                  className="w-full flex items-center justify-between gap-2 py-2 border-b border-border last:border-0 hover:bg-secondary/40 rounded-md px-1 -mx-1"
+                  className="w-full flex items-center justify-between gap-2 py-2 border-b border-border last:border-0 rounded-md px-1 -mx-1"
                 >
                   <button
                     type="button"
                     onClick={() => setEditingLog(log)}
-                    className="flex-1 flex items-center justify-between gap-2 text-left min-w-0"
+                    className="flex-1 flex items-center justify-between gap-2 text-left min-w-0 group"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{log.meal_name}</p>
@@ -355,20 +352,20 @@ export default function HomePage() {
                       </p>
                     </div>
                     <Badge variant="outline">{log.calories ? formatCalories(log.calories) : "--"}</Badge>
-                    <Pencil className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-primary group-active:text-primary shrink-0 transition-colors" />
                   </button>
                   <button
                     type="button"
-                    onClick={saveLogAsRecipe}
-                    aria-label="Guardar como receta"
-                    className="flex items-center justify-center w-12 h-12 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
+                    onClick={toggleRecipe}
+                    aria-label={saved ? "Quitar receta" : "Guardar como receta"}
+                    className={`flex items-center justify-center w-10 h-10 rounded-md shrink-0 transition-colors ${saved ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
                   >
-                    <Bookmark className="h-4 w-4" />
+                    <Bookmark className={`h-4 w-4 ${saved ? "fill-primary" : ""}`} />
                   </button>
                 </div>
               )
             })}
-            <p className="text-xs text-muted-foreground pt-1">Toca un registro para editarlo o eliminarlo.</p>
+            <p className="text-xs text-muted-foreground pt-1">Toca para editar o eliminar.</p>
           </CardContent>
         </Card>
       )}

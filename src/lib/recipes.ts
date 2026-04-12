@@ -52,3 +52,9 @@ export function isRecipeSaved(name: string): boolean {
   const k = name.trim().toLowerCase()
   return loadRecipes().some((r) => r.name.trim().toLowerCase() === k)
 }
+
+export function deleteRecipeByName(name: string) {
+  const k = name.trim().toLowerCase()
+  const list = loadRecipes().filter((r) => r.name.trim().toLowerCase() !== k)
+  saveRecipes(list)
+}
