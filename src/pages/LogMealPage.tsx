@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { useCreateFoodLog } from "@/hooks/use-food-log"
+import { useCreateFoodLog, useTodayFoodLog, useUpdateFoodLog } from "@/hooks/use-food-log"
 import { useAnalyzeFood, useChatFood, type AnalyzedFood } from "@/hooks/use-ai"
 import { addRecipe, isRecipeSaved } from "@/lib/recipes"
 import { usePantry } from "@/hooks/use-pantry"
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { MEAL_TYPE_LABELS } from "@/lib/nutrition"
-import type { MealType, LogInputMethod } from "@/integrations/supabase/types"
+import type { MealType, LogInputMethod, FoodLog } from "@/integrations/supabase/types"
 import { Mic, Loader2, MicOff, Send, Sparkles, Star, Package, Sigma, ChefHat, ChevronDown, ChevronUp, Camera } from "lucide-react"
 import { compressImage, compressDataUrl } from "@/lib/image"
 
@@ -41,6 +41,48 @@ function saveFavorites(list: Favorite[]) {
 function isFavorited(list: Favorite[], name: string): boolean {
   const k = name.trim().toLowerCase()
   return list.some((f) => f.name.trim().toLowerCase() === k)
+}
+
+// --- Chat persistence (daily) ---
+const CHAT_STORAGE_KEY = "nt:chat-daily"
+
+function getMadridDate(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" })
+}
+
+interface PersistedChat {
+  date: string
+  messages: ChatMessage[]
+  chatHistory: { role: "user" | "assistant"; content: string }[]
+}
+
+function loadTodayChat(): PersistedChat | null {
+  try {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as PersistedChat
+    if (data.date !== getMadridDate()) {
+      localStorage.removeItem(CHAT_STORAGE_KEY)
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+function saveTodayChat(messages: ChatMessage[], chatHistory: { role: "user" | "assistant"; content: string }[]) {
+  const persistable = messages
+    .filter((m) => m.kind !== "analyzing" && m.kind !== "thinking")
+    .map((m) => (m.kind === "image" ? { ...m, src: "" } : m))
+  try {
+    localStorage.setItem(
+      CHAT_STORAGE_KEY,
+      JSON.stringify({ date: getMadridDate(), messages: persistable, chatHistory })
+    )
+  } catch {
+    // storage full — ignore
+  }
 }
 
 function currentMealSlot(): MealType {
@@ -78,6 +120,7 @@ function ManualEntryForm({
   onSave,
   saving,
   initial,
+  isUpdate,
 }: {
   onSave: (data: {
     meal_name: string
@@ -90,6 +133,7 @@ function ManualEntryForm({
   }) => void
   saving: boolean
   initial?: AnalyzedFood | null
+  isUpdate?: boolean
 }) {
   const [favs, setFavs] = useState<Favorite[]>(() => loadFavorites())
   const [mealName, setMealName] = useState(initial?.meal_name ?? "")
@@ -193,7 +237,7 @@ function ManualEntryForm({
       </div>
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" size="lg" disabled={saving}>
-          {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Guardar comida"}
+          {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : isUpdate ? "Actualizar comida" : "Guardar comida"}
         </Button>
         <button
           type="button"
@@ -311,22 +355,25 @@ export default function LogMealPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const createFoodLog = useCreateFoodLog()
+  const updateFoodLog = useUpdateFoodLog()
   const analyzeFood = useAnalyzeFood()
   const chatFood = useChatFood()
   const { data: pantry } = usePantry()
-  const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([])
+  const { data: todayLogs } = useTodayFoodLog()
+
+  // Load persisted chat for today
+  const persistedRef = useRef(loadTodayChat())
+  const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>(
+    () => persistedRef.current?.chatHistory ?? []
+  )
   const [saving, setSaving] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      kind: "saved",
-      mealName: "",
-    },
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    () => persistedRef.current?.messages ?? []
+  )
   const [, setPendingResult] = useState<AnalyzedFood | null>(null)
   const [pendingMethod, setPendingMethod] = useState<LogInputMethod>("text")
   const [pendingRawText, setPendingRawText] = useState<string | null>(null)
+  const [editingLogId, setEditingLogId] = useState<string | null>(null)
 
   // Composer state
   const [textInput, setTextInput] = useState("")
@@ -355,6 +402,14 @@ export default function LogMealPage() {
     // autoscroll
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages])
+
+  // Persist chat to localStorage on every change (skip transient states)
+  useEffect(() => {
+    const hasContent = messages.some((m) => m.kind !== "analyzing" && m.kind !== "thinking")
+    if (hasContent && messages.length > 0) {
+      saveTodayChat(messages, chatHistory)
+    }
+  }, [messages, chatHistory])
 
   // Read preselected method from navigation state
   const handledMethodRef = useRef(false)
@@ -441,15 +496,33 @@ export default function LogMealPage() {
     setChatHistory(nextHistory)
     pushMessage({ id: `t-${Date.now()}`, role: "assistant", kind: "thinking" })
     try {
-      const reply = await chatFood.mutateAsync({ messages: nextHistory })
+      // Build today_meals for the AI context
+      const today_meals = (todayLogs ?? []).map((l) => ({
+        name: l.meal_name,
+        kcal: Math.round(l.calories ?? 0),
+        meal_type: MEAL_TYPE_LABELS[l.meal_type as MealType] ?? l.meal_type ?? "",
+      }))
+      const reply = await chatFood.mutateAsync({ messages: nextHistory, today_meals })
       const assistantContent = reply.reply || (reply.ask ?? "")
       setChatHistory([...nextHistory, { role: "assistant", content: assistantContent }])
       if (reply.ready && reply.summary) {
+        // Check if this is a modification of an existing meal
+        if (reply.modify && todayLogs) {
+          const target = todayLogs.find(
+            (l) => l.meal_name.toLowerCase() === reply.modify!.toLowerCase()
+          ) ?? todayLogs.find(
+            (l) => l.meal_name.toLowerCase().includes(reply.modify!.toLowerCase()) ||
+                   reply.modify!.toLowerCase().includes(l.meal_name.toLowerCase())
+          )
+          if (target) {
+            setEditingLogId(target.id)
+          }
+        }
         replaceLastThinking({
           id: `tx-${Date.now()}`,
           role: "assistant",
           kind: "text",
-          text: assistantContent || "Perfecto, lo registro.",
+          text: assistantContent || (editingLogId ? "Actualizado." : "Registrado."),
         })
         await runAnalyze({ text: reply.summary }, "text", reply.summary)
       } else {
@@ -538,27 +611,50 @@ export default function LogMealPage() {
   }) => {
     setSaving(true)
     try {
-      await createFoodLog.mutateAsync({
-        logged_at: new Date().toISOString(),
-        meal_type: data.meal_type,
-        input_method: pendingMethod,
-        raw_text: pendingRawText,
-        photo_url: null,
-        audio_url: null,
-        meal_name: data.meal_name,
-        description: null,
-        items: [],
-        calories: data.calories,
-        protein_g: data.protein_g,
-        carbs_g: data.carbs_g,
-        fat_g: data.fat_g,
-        fiber_g: data.fiber_g || null,
-        meal_plan_item_id: null,
-        ai_confidence: null,
-        ai_model: null,
+      if (editingLogId) {
+        await updateFoodLog.mutateAsync({
+          id: editingLogId,
+          updates: {
+            meal_name: data.meal_name,
+            calories: data.calories,
+            protein_g: data.protein_g,
+            carbs_g: data.carbs_g,
+            fat_g: data.fat_g,
+            fiber_g: data.fiber_g || null,
+            meal_type: data.meal_type,
+          },
+        })
+        toast.success("Comida actualizada")
+        setEditingLogId(null)
+      } else {
+        await createFoodLog.mutateAsync({
+          logged_at: new Date().toISOString(),
+          meal_type: data.meal_type,
+          input_method: pendingMethod,
+          raw_text: pendingRawText,
+          photo_url: null,
+          audio_url: null,
+          meal_name: data.meal_name,
+          description: null,
+          items: [],
+          calories: data.calories,
+          protein_g: data.protein_g,
+          carbs_g: data.carbs_g,
+          fat_g: data.fat_g,
+          fiber_g: data.fiber_g || null,
+          meal_plan_item_id: null,
+          ai_confidence: null,
+          ai_model: null,
+        })
+        toast.success("Comida registrada")
+      }
+      // Stay on page — show confirmation in chat instead of navigating away
+      pushMessage({
+        id: `s-${Date.now()}`,
+        role: "assistant",
+        kind: "saved",
+        mealName: data.meal_name,
       })
-      toast.success("Comida registrada")
-      navigate("/inicio")
     } catch {
       toast.error("Error al guardar")
     } finally {
@@ -683,17 +779,23 @@ export default function LogMealPage() {
                   <Card>
                     <CardContent className="p-3">
                       <p className="text-sm text-muted-foreground mb-1">
-                        Revisa y ajusta antes de guardar.
+                        {editingLogId ? "Revisa y ajusta antes de actualizar." : "Revisa y ajusta antes de guardar."}
                       </p>
                       <SourceBadges items={m.result.items} />
                       <ManualEntryForm
                         onSave={handleSave}
                         saving={saving}
                         initial={m.result}
+                        isUpdate={!!editingLogId}
                       />
                       <RecipeSection result={m.result} />
                     </CardContent>
                   </Card>
+                )}
+                {m.kind === "saved" && m.mealName && (
+                  <div className="rounded-2xl rounded-tl-sm bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+                    {m.mealName} guardado correctamente.
+                  </div>
                 )}
               </div>
             </div>

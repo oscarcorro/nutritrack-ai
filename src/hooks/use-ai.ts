@@ -32,6 +32,7 @@ export interface ChatFoodReply {
   ready: boolean
   summary?: string
   ask?: string
+  modify?: string
   model: string
 }
 
@@ -69,8 +70,10 @@ export function useAnalyzeFood() {
 
 export function useChatFood() {
   return useMutation({
-    mutationFn: (input: { messages: { role: 'user' | 'assistant'; content: string }[] }) =>
-      invoke<ChatFoodReply>('ai-chat-food', input),
+    mutationFn: (input: {
+      messages: { role: 'user' | 'assistant'; content: string }[]
+      today_meals?: { name: string; kcal: number; meal_type: string }[]
+    }) => invoke<ChatFoodReply>('ai-chat-food', input),
   })
 }
 
