@@ -823,8 +823,8 @@ export default function LogMealPage() {
         </div>
       )}
 
-      {/* Composer */}
-      <div className="sticky bottom-0 bg-background pt-2 pb-[env(safe-area-inset-bottom)]">
+      {/* Composer — pinned at bottom via flex, never scrolls */}
+      <div className="shrink-0 bg-background pt-2 pb-[env(safe-area-inset-bottom)]">
         <input
           ref={fileInputRef}
           type="file"
@@ -832,7 +832,7 @@ export default function LogMealPage() {
           className="hidden"
           onChange={handleFileSelect}
         />
-        <div className="flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
+        <div className="flex items-end gap-2 rounded-2xl bg-secondary/50 p-2">
           <textarea
             ref={textareaRef}
             value={textInput}
@@ -846,7 +846,7 @@ export default function LogMealPage() {
             placeholder="Cuéntame qué has comido..."
             rows={1}
             disabled={isAnalyzing}
-            className="flex-1 resize-none bg-transparent outline-none text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground"
+            className="flex-1 resize-none bg-transparent outline-none text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground focus:outline-none"
           />
           <button
             type="button"
