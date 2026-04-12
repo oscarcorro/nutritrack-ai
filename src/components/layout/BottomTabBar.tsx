@@ -44,12 +44,6 @@ export function BottomTabBar() {
                   </div>
                 ) : (
                   <>
-                    {isActive && (
-                      <span
-                        aria-hidden
-                        className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-primary nt-fade-in"
-                      />
-                    )}
                     <tab.icon
                       className={cn(
                         "h-6 w-6 transition-transform",
