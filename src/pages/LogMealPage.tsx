@@ -73,8 +73,11 @@ function loadTodayChat(): PersistedChat | null {
 
 function saveTodayChat(messages: ChatMessage[], chatHistory: { role: "user" | "assistant"; content: string }[]) {
   const persistable = messages
-    .filter((m) => m.kind !== "analyzing" && m.kind !== "thinking")
-    .map((m) => (m.kind === "image" ? { ...m, src: "" } : m))
+    .filter((m) => m.kind !== "analyzing" && m.kind !== "thinking" && m.kind !== "result")
+    .map((m) => {
+      if (m.kind === "image") return { ...m, src: "" }
+      return m
+    })
   try {
     localStorage.setItem(
       CHAT_STORAGE_KEY,
@@ -852,8 +855,8 @@ export default function LogMealPage() {
             placeholder="Cuéntame qué has comido..."
             rows={1}
             disabled={isAnalyzing}
-            style={{ outline: "none" }}
-            className="flex-1 resize-none bg-transparent text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground"
+            style={{ outline: "none", boxShadow: "none" }}
+            className="flex-1 resize-none bg-transparent text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground [&:focus-visible]:ring-0 [&:focus-visible]:ring-offset-0 [&:focus-visible]:outline-none"
           />
           <button
             type="button"

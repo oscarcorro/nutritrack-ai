@@ -25,7 +25,7 @@ export function useFoodLog(startDate: string, endDate: string) {
 }
 
 export function useTodayFoodLog() {
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" })
   return useFoodLog(`${today}T00:00:00`, `${today}T23:59:59`)
 }
 
