@@ -507,22 +507,28 @@ export default function LogMealPage() {
       setChatHistory([...nextHistory, { role: "assistant", content: assistantContent }])
       if (reply.ready && reply.summary) {
         // Check if this is a modification of an existing meal
+        let isModify = false
         if (reply.modify && todayLogs) {
+          const modifyLower = reply.modify.toLowerCase()
           const target = todayLogs.find(
-            (l) => l.meal_name.toLowerCase() === reply.modify!.toLowerCase()
+            (l) => l.meal_name.toLowerCase() === modifyLower
           ) ?? todayLogs.find(
-            (l) => l.meal_name.toLowerCase().includes(reply.modify!.toLowerCase()) ||
-                   reply.modify!.toLowerCase().includes(l.meal_name.toLowerCase())
+            (l) => l.meal_name.toLowerCase().includes(modifyLower) ||
+                   modifyLower.includes(l.meal_name.toLowerCase())
           )
           if (target) {
             setEditingLogId(target.id)
+            isModify = true
           }
+        }
+        if (!isModify) {
+          setEditingLogId(null)
         }
         replaceLastThinking({
           id: `tx-${Date.now()}`,
           role: "assistant",
           kind: "text",
-          text: assistantContent || (editingLogId ? "Actualizado." : "Registrado."),
+          text: assistantContent || (isModify ? "Actualizado." : "Registrado."),
         })
         await runAnalyze({ text: reply.summary }, "text", reply.summary)
       } else {
@@ -846,7 +852,8 @@ export default function LogMealPage() {
             placeholder="Cuéntame qué has comido..."
             rows={1}
             disabled={isAnalyzing}
-            className="flex-1 resize-none bg-transparent outline-none text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground focus:outline-none"
+            style={{ outline: "none" }}
+            className="flex-1 resize-none bg-transparent text-base py-2 px-2 min-h-[48px] max-h-[140px] placeholder:text-muted-foreground"
           />
           <button
             type="button"
