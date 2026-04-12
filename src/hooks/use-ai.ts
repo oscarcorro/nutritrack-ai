@@ -105,7 +105,8 @@ export function useSwapMeal() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (item_id: string) => invoke<unknown>('ai-swap-meal', { item_id }),
+    mutationFn: (input: { item_id: string; reason?: string }) =>
+      invoke<unknown>('ai-swap-meal', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meal-plan', user?.id] })
     },

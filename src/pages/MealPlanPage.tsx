@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useMealPlan } from "@/hooks/use-meal-plan"
 import { useCreateFoodLog, useFoodLog } from "@/hooks/use-food-log"
 import { useSwapMeal, useSuggestMeal } from "@/hooks/use-ai"
@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { formatCalories, formatMacro, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "@/lib/nutrition"
 import type { MealPlanItem } from "@/integrations/supabase/types"
-import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart, Trash2, Bookmark } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, ChevronDown, ChevronUp, Loader2, UtensilsCrossed, Sparkles, Refrigerator, CalendarRange, ShoppingCart, Trash2, Bookmark, Mic, MicOff, Send, ThumbsDown, X } from "lucide-react"
 import { addRecipe } from "@/lib/recipes"
 import {
   AlertDialog,
@@ -36,23 +36,32 @@ import { Link } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client"
 import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/contexts/AuthContext"
+import { useCreateFoodPreference } from "@/hooks/use-food-preferences"
+import { DislikesScreen } from "@/components/preferences/DislikesScreen"
 
 function MealCard({
   item,
   onLog,
   onSwap,
   onDelete,
+  onDislike,
 }: {
   item: MealPlanItem
   onLog: (item: MealPlanItem) => void
-  onSwap: (item: MealPlanItem) => Promise<void>
+  onSwap: (item: MealPlanItem, reason?: string) => Promise<void>
   onDelete: (item: MealPlanItem) => Promise<void>
+  onDislike: (foodName: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [logging, setLogging] = useState(false)
   const [swapping, setSwapping] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [swapOpen, setSwapOpen] = useState(false)
+  const [swapReason, setSwapReason] = useState("")
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const audioTranscriptRef = useRef("")
 
   const handleConfirmDelete = async () => {
     setConfirmOpen(false)
@@ -84,14 +93,57 @@ function MealCard({
     setLogging(false)
   }
 
-  const handleSwap = async () => {
+  const doSwap = async (reason?: string) => {
     setSwapping(true)
+    setSwapOpen(false)
     try {
-      await onSwap(item)
+      await onSwap(item, reason?.trim() || undefined)
     } finally {
       setSwapping(false)
+      setSwapReason("")
     }
   }
+
+  const handleNoTengo = (ingredientName: string) => {
+    doSwap(`No tengo: ${ingredientName}`)
+  }
+
+  const handleDislikeIngredient = (ingredientName: string) => {
+    onDislike(ingredientName)
+    doSwap(`No me gusta: ${ingredientName}`)
+  }
+
+  const startRecording = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { toast.error("Navegador no soporta voz"); return }
+    audioTranscriptRef.current = ""
+    const recognition = new SR()
+    recognition.lang = "es-ES"
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let t = ""
+      for (let i = 0; i < event.results.length; i++) t += event.results[i][0].transcript
+      audioTranscriptRef.current = t
+    }
+    recognition.onerror = () => { toast.error("Error de voz"); setIsRecording(false) }
+    recognition.start()
+    recognitionRef.current = recognition
+    setIsRecording(true)
+  }
+
+  const stopRecording = () => {
+    recognitionRef.current?.stop()
+    setIsRecording(false)
+    const transcript = audioTranscriptRef.current.trim()
+    if (!transcript) { toast.error("No se escucho nada"); return }
+    setSwapReason(transcript)
+    doSwap(transcript)
+  }
+
+  const ingredients = Array.isArray(item.ingredients)
+    ? (item.ingredients as Array<{ name: string; quantity_g: number }>)
+    : []
 
   return (
     <Card>
@@ -161,16 +213,35 @@ function MealCard({
         </button>
         {expanded && (
           <div className="space-y-3 bg-secondary/50 p-3 rounded-xl">
-            {Array.isArray(item.ingredients) && (item.ingredients as Array<{ name: string; quantity_g: number }>).length > 0 && (
+            {ingredients.length > 0 && (
               <div>
                 <div className="flex items-center gap-1 mb-2 text-sm font-semibold">
                   <UtensilsCrossed className="h-4 w-4" /> Ingredientes
                 </div>
                 <ul className="text-sm space-y-1">
-                  {(item.ingredients as Array<{ name: string; quantity_g: number }>).map((ing, idx) => (
-                    <li key={idx} className="flex justify-between">
-                      <span>{ing.name}</span>
-                      <span className="text-muted-foreground tabular-nums">{ing.quantity_g} g</span>
+                  {ingredients.map((ing, idx) => (
+                    <li key={idx} className="flex items-center justify-between gap-1">
+                      <span className="flex-1">{ing.name}</span>
+                      <span className="text-muted-foreground tabular-nums shrink-0">{ing.quantity_g} g</span>
+                      <button
+                        type="button"
+                        onClick={() => handleNoTengo(ing.name)}
+                        disabled={swapping}
+                        className="text-xs text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 rounded px-1.5 py-0.5 border border-transparent hover:border-amber-300 shrink-0 transition-colors"
+                        title={`No tengo ${ing.name}`}
+                      >
+                        No tengo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDislikeIngredient(ing.name)}
+                        disabled={swapping}
+                        className="text-muted-foreground hover:text-destructive shrink-0 p-1 rounded hover:bg-destructive/10 transition-colors"
+                        title={`No me gusta ${ing.name}`}
+                        aria-label={`No me gusta ${ing.name}`}
+                      >
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -188,12 +259,58 @@ function MealCard({
           </div>
         )}
 
+        {/* Swap reason panel */}
+        {swapOpen && (
+          <div className="rounded-lg border p-3 space-y-2 bg-secondary/40">
+            <p className="text-xs text-muted-foreground">
+              Indica por qué quieres cambiar (ej: "no tengo huevos", "algo más rápido")
+            </p>
+            <div className="flex items-end gap-2">
+              <input
+                value={swapReason}
+                onChange={(e) => setSwapReason(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); doSwap(swapReason) } }}
+                placeholder="Motivo del cambio..."
+                disabled={swapping}
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={swapping}
+                className={`flex items-center justify-center w-10 h-10 rounded-full shrink-0 ${isRecording ? "bg-destructive text-destructive-foreground" : "hover:bg-secondary text-muted-foreground border border-border"}`}
+                aria-label={isRecording ? "Parar" : "Dictar"}
+              >
+                {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => doSwap(swapReason)}
+                disabled={swapping}
+                className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground shrink-0 disabled:opacity-40"
+                aria-label="Cambiar"
+              >
+                {swapping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </div>
+            {isRecording && (
+              <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                Escuchando...
+              </p>
+            )}
+            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => doSwap()}>
+              Cambiar sin motivo
+            </Button>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-2">
           <Button size="sm" onClick={handleLog} disabled={logging} className="flex-1">
             {logging ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Check className="h-4 w-4 mr-1" /> Comi esto</>}
           </Button>
-          <Button size="sm" variant="outline" className="flex-1" onClick={handleSwap} disabled={swapping}>
+          <Button size="sm" variant="outline" className="flex-1" onClick={() => setSwapOpen(!swapOpen)} disabled={swapping}>
             {swapping ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cambiar"}
           </Button>
         </div>
@@ -286,13 +403,26 @@ export default function MealPlanPage() {
     }
   }
 
-  const handleSwap = async (item: MealPlanItem) => {
+  const createPref = useCreateFoodPreference()
+  const [dislikesOpen, setDislikesOpen] = useState(false)
+
+  const handleSwap = async (item: MealPlanItem, reason?: string) => {
     try {
-      await swapMeal.mutateAsync(item.id)
+      await swapMeal.mutateAsync({ item_id: item.id, reason })
       toast.success("Comida cambiada")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al cambiar")
     }
+  }
+
+  const handleDislike = (foodName: string) => {
+    createPref.mutate(
+      { food_name: foodName, preference_type: "dislike" },
+      {
+        onSuccess: () => toast.success(`"${foodName}" añadido a No me gusta`),
+        onError: () => toast.error("Error al guardar preferencia"),
+      }
+    )
   }
 
   const isToday = format(new Date(), "yyyy-MM-dd") === dateStr
@@ -367,7 +497,7 @@ export default function MealPlanPage() {
 
   return (
     <div className="space-y-4">
-      {/* Quick actions: pantry + shopping list */}
+      {/* Quick actions: pantry + dislikes + shopping list */}
       <div className="flex gap-2">
         <Button
           variant="outline"
@@ -377,14 +507,23 @@ export default function MealPlanPage() {
         >
           <Refrigerator className="h-4 w-4 mr-1" /> Despensa
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => setDislikesOpen((v) => !v)}
+        >
+          <ThumbsDown className="h-4 w-4 mr-1" /> Alergias
+        </Button>
         <Button asChild variant="outline" size="sm" className="flex-1">
           <Link to="/compra">
-            <ShoppingCart className="h-4 w-4 mr-1" /> Lista de la compra
+            <ShoppingCart className="h-4 w-4 mr-1" /> Compra
           </Link>
         </Button>
       </div>
 
       {pantryOpen && <PantryScreen onClose={() => setPantryOpen(false)} />}
+      {dislikesOpen && <DislikesScreen onClose={() => setDislikesOpen(false)} />}
 
       {/* Week strip */}
       <div className="grid grid-cols-7 gap-1">
@@ -542,7 +681,7 @@ export default function MealPlanPage() {
           {/* Meal cards */}
           <div className="space-y-3">
             {plan.items.map((item) => (
-              <MealCard key={item.id} item={item} onLog={handleLogMeal} onSwap={handleSwap} onDelete={handleDeleteItem} />
+              <MealCard key={item.id} item={item} onLog={handleLogMeal} onSwap={handleSwap} onDelete={handleDeleteItem} onDislike={handleDislike} />
             ))}
           </div>
 

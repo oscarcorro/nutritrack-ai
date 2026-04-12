@@ -8,6 +8,7 @@ import { getUserClient, getUser, loadUserContext, buildUserContextPrompt } from 
 
 interface RequestBody {
   item_id: string
+  reason?: string
 }
 
 interface SwappedMeal {
@@ -28,7 +29,11 @@ const SYSTEM = `Eres un nutricionista. Reemplaza una comida por otra diferente p
 
 <safety>
 NUNCA incluyas ingredientes listados en "Alergias" o "Intolerancias" del usuario. Esta regla anula cualquier otra. Verifica la lista antes de proponer el plato.
+Si el usuario es celiaco, NUNCA uses trigo, cebada, centeno, espelta, kamut ni derivados (pan, pasta, galletas, rebozados, salsas con harina de trigo, etc.). Usa alternativas sin gluten.
+Si tiene intolerancia a lactosa, evita leche, queso fresco, nata. Puedes usar queso curado, yogur y kefir (baja lactosa).
 </safety>
+
+RAZON DEL CAMBIO: Si el usuario indica una razon (como "no tengo X ingrediente", "no me gusta Y", "quiero algo mas rapido"), adapta la alternativa a esa razon. Si dice que no tiene un ingrediente, usa otro diferente. Si no le gusta algo, evitalo y anadelo mentalmente a sus dislikes.
 
 Respeta las preferencias y alergias del usuario. Devuelve SOLO JSON con esta estructura:
 {
@@ -50,7 +55,7 @@ Deno.serve(async (req: Request) => {
   try {
     const client = getUserClient(req)
     const user = await getUser(client)
-    const { item_id } = (await req.json()) as RequestBody
+    const { item_id, reason } = (await req.json()) as RequestBody
     if (!item_id) {
       return new Response(JSON.stringify({ error: "item_id required" }), {
         status: 400,
@@ -85,7 +90,7 @@ Deno.serve(async (req: Request) => {
 - Grasa: ${original.fat_g} g
 - Fibra: ${original.fiber_g} g
 
-Genera una alternativa diferente con macros similares. Manten la fibra dentro de +-20% del original. Manten el meal_type (${original.meal_type}).`,
+Genera una alternativa diferente con macros similares. Manten la fibra dentro de +-20% del original. Manten el meal_type (${original.meal_type}).${reason ? `\n\nRAZON DEL USUARIO PARA CAMBIAR: ${reason}` : ""}`,
         },
       ],
       max_tokens: 1024,
